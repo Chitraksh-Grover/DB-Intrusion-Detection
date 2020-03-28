@@ -3,6 +3,7 @@
 
 import datagen as dg
 import numpy as np
+
 #####################BROKER VOLUME TRANSACTION################################# 
 #broker manager 
 def brokervolume():
