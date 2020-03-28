@@ -58,7 +58,7 @@ column_types.extend(col_type)
 
 #Holding History
 HoldingHistory = pd.read_csv("flat_out/HoldingHistory.txt",sep = "|" , header = None)
-HoldingHistory.columns = ["HH_H_T_ID","HH_T_ID","HH_BEFORE_QTY","H_AFTER_QTY"]
+HoldingHistory.columns = ["HH_H_T_ID","HH_T_ID","HH_BEFORE_QTY","HH_AFTER_QTY"]
 #HoldingHistory.set_index(["HH_H_T_ID","HH_T_ID"])
 col = HoldingHistory.dtypes
 col_name = list(col.index)
@@ -342,17 +342,47 @@ total_columns.extend(col_name)
 column_types.extend(col_type)
 
 #URV Template Construction
-foreign_keys = ['AP_CA_ID','C_ST_ID','C_AD_ID','CA_B_ID','CA_C_ID','CX_TX_ID','CX_C_ID','H_T_ID','H_CA_ID','H_S_SYMB','HH_H_T_ID',
+URV_feature_type =  {}
+for i in range(len(total_columns)):
+    if total_columns[i].find('_ID') !=-1:
+        URV_feature_type[total_columns[i]] = 'C' 
+    elif column_types[i] == np.float64 or column_types[i] == np.int64:
+        URV_feature_type[total_columns[i]] = 'N' 
+    else:
+        URV_feature_type[total_columns[i]] = 'C'
+        
+exception = ['AP_ACL','C_AREA_1','C_AREA_2','C_AREA_3','C_CTRY_1','C_CTRY_2','C_CTRY_3',
+             'C_EXT_1','C_EXT_2','C_EXT_3','C_LOCAL_1','C_LOCAL_2','C_LOCAL_3',
+             'C_TIER', 'CA_TAX_ST','CH_CHRG','CH_C_TIER','CR_C_TIER','T_IS_CASH',
+             'T_LIFO','TR_QTY','TR_BID_PRICE','TT_IS_MRKT','TT_IS_SELL','FI_QTR']
+
+for e in exception:
+    if URV_feature_type[e] == 'C':
+        URV_feature_type[e] = 'N'
+    else:
+        URV_feature_type[e] = 'C'
+        
+URV_feature_index = {}
+start = 0
+for i in total_columns:
+    URV_feature_index[i] = start
+    if URV_feature_type[i] == 'C':
+        start = start + 2
+    else:
+        start = start + 5
+
+URV_size = start
+    
+        
+'''foreign_keys = ['AP_CA_ID','C_ST_ID','C_AD_ID','CA_B_ID','CA_C_ID','CX_TX_ID','CX_C_ID','H_T_ID','H_CA_ID','H_S_SYMB','HH_H_T_ID',
                 'HH_T_ID','HS_CA_ID','HS_S_SYMB','WI_WL_ID','WI_S_SYMB','WL_C_ID','B_ST_ID','CT_T_ID','CH_TT_ID','CR_TT_ID','CR_EX_ID',
                 'SE_T_ID','T_ST_ID','T_TT_ID','T_S_SYMB','T_CA_ID','TH_T_ID','TH_ST_ID','TR_T_ID','TR_TT_ID','TR_S_SYMB','TR_B_ID','CO_ST_ID',
                 'CO_IN_ID','CO_AD_ID','CP_CO_ID','CP_COMP_CO_ID','CP_IN_ID','DM_S_SYMB','EX_AD_ID','FI_CO_ID','IN_SC_ID','LT_S_SYMB',
-                'NX_NI_ID','NX_CO_ID','S_ST_ID','S_EX_ID','S_CO_ID','AD_ZC_CODE']
+                'NX_NI_ID','NX_CO_ID','S_ST_ID','S_EX_ID','S_CO_ID','AD_ZC_CODE']'''
 
-feature_mapping = {}
-for i in range(len(total_columns)):
-    feature_mapping[total_columns[i]] = i
+
     
-for fk in foreign_keys:
+'''for fk in foreign_keys:
     pos = fk.find('_')
     feature = fk[pos+1:]
     try:
@@ -364,10 +394,10 @@ for fk in foreign_keys:
         
     
 URV_base_features = list(set(total_columns)-set(foreign_keys))
-URV_feature_type = [True if feature == np.float64 else False for feature in URV_base_features]
+
 #True for numerical and false for categorical including ordinal 
 #ID's are of type int64 so initially all int64 are false
-'''def Repeat(x): 
+def Repeat(x): 
     _size = len(x) 
     repeated = [] 
     for i in range(_size): 
