@@ -82,44 +82,117 @@ def brokervolume():
        v = v.sum()
        volume.append(v)
         
-    createProfile(profile,'brokervolume')
+    createProfile(profile,' brokervolume')
     
     del industry_id,company_id,security_symbol,trade,qty,price,sectors
     return sector_name , brokers , volume
 
 ############################CUSTOMER POSITION TRANSACTION######################
-def customerposition(cust_id='', get_history='', tax_id=''):
-    if cust_id == '' or  get_history== '' or tax_id== '':
+def customerposition(cust_id='', get_history='', tax_id='',account_id_idx=''):
+    profile = {}
+    if cust_id == ''  or  get_history== '' or tax_id== '':
         print('parameter mising , choosing random parameters ###############')
-        cust_id = np.random.randint(1)
-        get_history = np.random.randint(1)
+        cust_id = np.random.randint(2)
+        get_history = np.random.randint(2)
         if cust_id == 0:
             customers = list(dg.Customer['C_TAX_ID'])
             tax_id = customers[np.random.randint(len(customers))]
+            profile['C_TAX_ID'] = [tax_id]
             cust_id = dg.Customer.loc[dg.Customer['C_TAX_ID']==tax_id,'C_ID'].values[0]
+            profile['C_ID'] = [cust_id]
         else:
             customers = list(dg.Customer['C_ID'])
             cust_id = customers[np.random.randint(len(customers))]
+            profile['C_ID'] = [cust_id]
+            
+    ###############################FRAME 2###################################        
+    if get_history == 1:
+        if account_id_idx == '':
+            account_id = list(dg.CustomerAccount.loc[dg.CustomerAccount['CA_C_ID']==cust_id,'CA_ID'])
+            account_id_idx = account_id[np.random.randint(len(account_id))]
+            profile['CA_C_ID'] = [cust_id]
+            profile['CA_ID']  = [account_id_idx]
+        
+        trade = dg.Trade.loc[dg.Trade['T_CA_ID']==account_id_idx,['T_ID','T_CA_ID','T_S_SYMB','T_QTY','T_DTS']]
+        trade = trade[::-1]
+        trade = trade.iloc[:10]
+        trade = trade[::-1]
+        profile['T_ID'] = list(trade['T_ID'])
+        profile['T_CA_ID'] = list(trade['T_CA_ID'])
+        profile['T_S_SYMB'] = list(trade['T_S_SYMB'])
+        profile['T_QTY'] = list(trade['T_QTY'])
+        profile['T_DTS'] = list(trade['T_DTS'])
+        tradehistory = dg.TradeHistory.loc[dg.TradeHistory['TH_T_ID'].isin(list(trade['T_ID'])),['TH_T_ID','TH_ST_ID','TH_DTS']]
+        tradehistory = tradehistory[::-1]
+        tradehistory = tradehistory[:30]
+        profile['TH_T_ID'] = list(tradehistory['TH_T_ID'])
+        profile['TH_ST_ID'] = list(tradehistory['TH_ST_ID'])
+        profile['TH_DTS'] = list(tradehistory['TH_DTS'])
+        status = dg.StatusType.loc[dg.StatusType['ST_ID'].isin(list(tradehistory['TH_ST_ID'])),['ST_ID','ST_NAME']]
+        result =trade.set_index('T_ID',drop=False).join(tradehistory.set_index('TH_T_ID',drop=False))
+        result =result.set_index('TH_ST_ID',drop=False).join(status.set_index('ST_ID',drop=False))
+        profile['ST_ID'] = list(result['ST_ID'])
+        profile['ST_NAME'] = list(result['ST_NAME'])
+        createProfile(profile,' customerposition '+str(cust_id))
+        return cust_id,tax_id,account_id_idx,result[['T_ID','T_S_SYMB','T_QTY','ST_NAME','TH_DTS']]
+    #########################################################################        
     
-    customer_info = dg.Customers.loc[dg.Custmers['TAX_ID']==cust_id,[ 'C_ST_ID',
+    customer_info = dg.Customer.loc[dg.Customer['C_ID']==cust_id,[ 'C_ST_ID',
     'C_L_NAME','C_F_NAME','C_M_NAME','C_GNDR','C_TIER','C_DOB','C_AD_ID',
     'C_CTRY_1','C_AREA_1','C_LOCAL_1','C_EXT_1','C_CTRY_2','C_AREA_2','C_LOCAL_2',
     'C_EXT_2','C_CTRY_3','C_AREA_3','C_LOCAL_3','C_EXT_3','C_EMAIL_1','C_EMAIL_2']]
+    profile['C_ST_ID'] = [customer_info['C_ST_ID'].values[0]]
+    profile['C_L_NAME'] = [customer_info['C_L_NAME'].values[0]]
+    profile['C_F_NAME'] = [customer_info['C_F_NAME'].values[0]]
+    profile['C_M_NAME'] = [customer_info['C_M_NAME'].values[0]]
+    profile['C_GNDR'] = [customer_info['C_GNDR'].values[0]]
+    profile['C_TIER'] = [customer_info['C_TIER'].values[0]]
+    profile['C_DOB'] = [customer_info['C_DOB'].values[0]]
+    profile['C_AD_ID'] = [customer_info['C_AD_ID'].values[0]]
+    profile['C_CTRY_1'] = [customer_info['C_CTRY_1'].values[0]]
+    profile['C_AREA_1'] = [customer_info['C_AREA_1'].values[0]]
+    profile['C_LOCAL_1'] = [customer_info['C_LOCAL_1'].values[0]]
+    profile['C_EXT_1'] = [customer_info['C_EXT_1'].values[0]]
+    profile['C_CTRY_2'] = [customer_info['C_CTRY_2'].values[0]]
+    profile['C_AREA_2'] = [customer_info['C_AREA_2'].values[0]]
+    profile['C_LOCAL_2'] = [customer_info['C_LOCAL_2'].values[0]]
+    profile['C_EXT_2'] = [customer_info['C_EXT_2'].values[0]]
+    profile['C_CTRY_3'] = [customer_info['C_CTRY_3'].values[0]]
+    profile['C_AREA_3'] = [customer_info['C_AREA_3'].values[0]]
+    profile['C_LOCAL_3'] = [customer_info['C_LOCAL_3'].values[0]]
+    profile['C_EXT_3'] = [customer_info['C_EXT_3'].values[0]]
+    profile['C_EMAIL_1'] = [customer_info['C_EMAIL_1'].values[0]]
+    profile['C_EMAIL_2'] = [customer_info['C_EMAIL_2'].values[0]]
     
-    customeraccount = dg.CustomerAccount.loc[dg.CustomerAccount['CA_C_ID']==cust_id,['CA_ID','CA_BAL']]
+    customeraccount = dg.CustomerAccount.loc[dg.CustomerAccount['CA_C_ID']==cust_id,['CA_C_ID','CA_ID','CA_BAL']]
     account_id = list(customeraccount['CA_ID'])
     cash_balance = list(customeraccount['CA_BAL'])
     #max account length is 10
     if len(account_id)>10:
         del account_id[10:]
         del cash_balance[10:]
+        
+    profile['CA_C_ID'] = [cust_id for i in range(len(account_id))]
+    profile['CA_ID'] = account_id
+    profile['CA_BAL'] = cash_balance
+    
+    profile['HS_CA_ID'] = []
+    profile['HS_S_SYMB'] = []
+    profile['HS_QTY'] = []
+    profile['LT_S_SYMB'] = []
+    profile['LT_PRICE'] = []
     
     assets_total = []
     for account in account_id:
-        holdingsummary = dg.HoldingHistory.loc[dg.HoldingSummary['HS_CA_ID'] == account,['HS_QTY','HS_S_SYMB']]
+        holdingsummary = dg.HoldingSummary.loc[dg.HoldingSummary['HS_CA_ID'] == account,['HS_CA_ID','HS_QTY','HS_S_SYMB']]
         lasttrade = dg.LastTrade.loc[dg.LastTrade['LT_S_SYMB'].isin(list(holdingsummary['HS_S_SYMB'])),['LT_S_SYMB','LT_PRICE']]
         symbol = list(holdingsummary['HS_S_SYMB'])
         qty = list(holdingsummary['HS_QTY'])
+        profile['HS_CA_ID'].extend(list(holdingsummary['HS_CA_ID'])) 
+        profile['HS_S_SYMB'].extend(symbol)
+        profile['HS_QTY'].extend(qty)
+        profile['LT_S_SYMB'].extend(list(lasttrade['LT_S_SYMB']))
+        profile['LT_PRICE'].extend(list(lasttrade['LT_PRICE']))
         asset = 0
         for i in range(len(symbol)):
             price = lasttrade.loc[lasttrade['LT_S_SYMB']==symbol[i],'LT_PRICE'].values[0]
@@ -129,7 +202,8 @@ def customerposition(cust_id='', get_history='', tax_id=''):
                 continue
         assets_total.append(asset)
         
-        return customer_info,cash_balance,assets_total,
+        createProfile(profile," customerposition "+str(cust_id))
+        return cust_id,tax_id,account_id,customer_info,cash_balance,assets_total
             
     
         
