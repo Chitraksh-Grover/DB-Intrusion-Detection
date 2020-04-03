@@ -204,9 +204,84 @@ def customerposition(cust_id='', get_history='', tax_id='',account_id_idx=''):
         
         createProfile(profile," customerposition "+str(cust_id))
         return cust_id,tax_id,account_id,customer_info,cash_balance,assets_total
+
+############################MARKET FEED TRANSACTION############################
+#def marketfeed():
+ 
+############################MARKET WATCH TRANSACTION###########################
+def marketwatch(acct_id=0,cust_id=0,industry_name='',ending_co_id=0,starting_co_id=0,start_date=''):
+    profile = {}
+    if acct_id==0 and cust_id==0 and industry_name=='':
+        sel = np.random.uniform(0,1,1)
+        if sel<0.35:
+            group = np.random.randint(2)
+            if group == 0:
+                customers = list(dg.Customer['C_ID'])
+            else:
+                tier = np.random.randint(1,4)
+                customers = list(dg.Customer.loc[dg.Customer['C_TIER']==tier,'C_ID'])
+            cust_id = customers[np.random.randint(len(customers))]
+            accounts = list(dg.CustomerAccount.loc[dg.CustomerAccount['CA_C_ID']==cust_id,'CA_ID'])
+            acct_id = accounts[np.random.randint(len(accounts))]
+        elif sel<0.95:
+            group = np.random.randint(2)
+            if group == 0:
+                customers = list(dg.Customer['C_ID'])
+            else:
+                tier = np.random.randint(1,4)
+                customers = list(dg.Customer.loc[dg.Customer['C_TIER']==tier,'C_ID'])
+            cust_id = customers[np.random.randint(len(customers))]
+        else:
+            industries = list(dg.Industry['IN_NAME'])
+            industry_name = industries[np.random.randint(len(industries))]
             
-    
+    if acct_id !=0:
+        stock_list = list(dg.HoldingSummary.loc[dg.HoldingSummary['HS_CA_ID']==acct_id,'HS_S_SYMB'])
+        profile['HS_CA_ID'] = [acct_id for i in range(len(stock_list))]
+        profile['HS_S_SYMB'] = stock_list
+    elif cust_id !=0:
+        watch_id = dg.WatchList.loc[dg.WatchList['WL_C_ID']==cust_id,'WL_ID'].values[0]
+        stock_list = list(dg.WatchItem.loc[dg.WatchItem['WI_WL_ID']==watch_id,'WI_S_SYMB'])
+        profile['WL_C_ID'] = [cust_id]
+        profile['WL_ID'] = [watch_id]
+        profile['WI_WL_ID'] = [watch_id for i in range(len(stock_list))]
+        profile['WI_S_SYMB'] = stock_list
+    elif industry_name!='':
+        industry_id = dg.Industry.loc[dg.Industry['IN_NAME']==industry_name,'IN_ID'].values[0]
+        profile['IN_NAME'] = industry_name
+        profile['IN_ID'] = industry_id
+        company_id = list(dg.Company.loc[dg.Company['CO_IN_ID']==industry_id,'CO_ID'])
+        if ending_co_id!=0:
+            company_id = np.array(company_id)
+            company_id = company_id[(company_id >= starting_co_id) & (company_id<= ending_co_id)]
+            company_id = list(company_id)
+        profile['CO_IN_ID'] = [industry_id for i in range(len(company_id))]
+        profile['CO_ID'] = company_id
+        security = dg.Security.loc[dg.Security['S_CO_ID'].isin(company_id),['S_CO_ID','S_SYMB']]
+        stock_list = list(security['S_SYMB'])
+        profile['S_CO_ID'] = list(security['S_CO_ID'])
+        profile['S_SYMB'] = stock_list
         
-        
+    old_mkt_cap = 0.00
+    new_mkt_cap = 0.00
+    pct_change = 0.00
     
+    for symbol in stock_list:
+        try:
+            new_price = dg.LastTrade.loc[dg.LastTrade['LT_S_SYMB'] == symbol,'LT_PRICE'].values[0]
+            s_num_out = dg.Security.loc[dg.Security['S_SYMB'] == symbol,'S_NUM_OUT'].values[0]
+            if start_date == '':
+                date_index = 1 + int(np.random.exponential(1))
+                if date_index > 1305 :
+                    date_index = 1305
+                date = list(dg.DailyMarket['DM_DATE'])
+                start_date = date[0-date_index]
+            old_price = dg.DailyMarket.loc[(dg.DailyMarket['DM_DATE'] == start_date) & (dg.DailyMarket['DM_S_SYMB'] == symbol),'DM_CLOSE'].values[0]
+            old_mkt_cap += s_num_out * old_price
+            new_mkt_cap += s_num_out * new_price
+        except:
+            old_mkt_cap = 0.00
+    if old_mkt_cap != 0.00:
+        pct_change = 100 * (new_mkt_cap / old_mkt_cap - 1)
     
+    return acct_id,cust_id,industry_name,ending_co_id,starting_co_id,start_date,pct_change
