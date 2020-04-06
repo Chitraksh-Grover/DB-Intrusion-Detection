@@ -3,7 +3,8 @@
 
 import datagen as dg
 import numpy as np
-import statistics
+import pandas as pd
+import random
 
 ##########################profile creation#####################################
 def createProfile(profile,trans):
@@ -453,6 +454,183 @@ def securitydetail(access_lob_flag = '',max_rows_to_return = '',start_day = '',s
     exchange,ca_address,ea_address,zca,zea,cp_co_name,cp_in_name,financial,dailymarket,
     lasttrade,newsitem
 
-  
+###############################TRADE LOOKUP TRANSACTION########################
+def tradelookup(acct_id=0,end_trade_dts='',frame_to_execute='',max_acct_id=0,max_trades=0,start_trade_dts='',symbol='',trade_id=[]):
+    if frame_to_execute=='':
+        frame_to_execute=np.random.randint(1,5)
 
+    profile = {}
+    if frame_to_execute==1:
+        if max_trades == 0:
+            max_trades = 20
+            trade_id=random.sample(list(dg.Trade['T_ID']),max_trades)
+        trade=dg.Trade.loc[dg.Trade['T_ID'].isin(trade_id),['T_ID','T_BID_PRICE',
+        'T_EXEC_NAME','T_IS_CASH','T_TRADE_PRICE','T_TT_ID']]
+        trade_type = dg.TradeType.loc[dg.TradeType['TT_ID'].isin(list(trade['T_TT_ID'])),
+        ['TT_ID','TT_IS_MRKT']]
+        trade = trade.set_index('T_TT_ID',drop = False).join(trade_type.set_index('TT_ID',drop = False))
+        profile['T_ID'] = list(trade['T_ID'].values)
+        profile['T_BID_PRICE'] = list(trade['T_BID_PRICE'].values)
+        profile['T_EXEC_NAME'] = list(trade['T_EXEC_NAME'].values)
+        profile['T_IS_CASH'] = list(trade['T_IS_CASH'].values)
+        profile['T_TRADE_PRICE'] = list(trade['T_TRADE_PRICE'].values)
+        profile['T_TT_ID'] = list(trade['T_TT_ID'].values)
+        profile['TT_ID'] = list(trade['TT_ID'].values)
+        profile['TT_IS_MRKT'] = list(trade['TT_IS_MRKT'].values)
+        settlement=dg.Settlement.loc[dg.Settlement['SE_T_ID'].isin(trade_id),
+        ['SE_AMT','SE_CASH_DUE_DATE','SE_CASH_TYPE']]
+        profile['SE_T_ID'] = trade_id
+        profile['SE_AMT'] = list(settlement['SE_AMT'].values)
+        profile['SE_CASH_DUE_DATE'] = list(settlement['SE_CASH_DUE_DATE'].values)
+        profile['SE_CASH_TYPE'] = list(settlement['SE_CASH_TYPE'].values)
+        cash = pd.DataFrame()
+        for row in trade.iterrows():
+            tid = row[1]['T_ID']
+            tcash = row[1]['T_IS_CASH']
+            if tcash==1:
+                iscash = dg.CashTransaction.loc[dg.CashTransaction['CT_T_ID']==tid,['CT_T_ID','CT_AMT','CT_DTS','CT_NAME']]
+                cash = cash.append(iscash)
+        profile['CT_T_ID'] = list(cash['CT_T_ID'].values)
+        profile['CT_AMT'] = list(cash['CT_AMT'].values)
+        profile['CT_DTS'] = list(cash['CT_DTS'].values)
+        profile['CT_NAME'] = list(cash['CT_NAME'].values)
+        tradehistory = dg.TradeHistory.loc[dg.TradeHistory['TH_T_ID'].isin(trade_id),['TH_T_ID','TH_DTS','TH_ST_ID']]
+        profile['TH_T_ID'] = list(tradehistory['TH_T_ID'].values)
+        profile['TH_DTS'] = list(tradehistory['TH_DTS'].values)
+        profile['TH_ST_ID'] = list(tradehistory['TH_ST_ID'].values) 
+        
+        createProfile(profile," tradelookup " + str(1))
+        return frame_to_execute , max_trades , trade_id , trade , settlement , cash , tradehistory
+
+    elif frame_to_execute == 2:
+        if max_trades == 0:
+            max_trades = 20
+            group = np.random.randint(2)
+            if group == 0:
+                customers = list(dg.Customer['C_ID'])
+            else:
+                tier = np.random.randint(1,4)
+                customers = list(dg.Customer.loc[dg.Customer['C_TIER']==tier,'C_ID'])
+            cust_id = customers[np.random.randint(len(customers))]
+            accounts = list(dg.CustomerAccount.loc[dg.CustomerAccount['CA_C_ID']==cust_id,'CA_ID'])
+            acct_id = accounts[np.random.randint(len(accounts))]
+            date=random.sample(list(dg.Trade['T_DTS']),2)
+            start_trade_dts = min(date)
+            end_trade_dts = max(date)
+        trade = dg.Trade.loc[(dg.Trade['T_DTS']>=start_trade_dts) & 
+        (dg.Trade['T_DTS']<=end_trade_dts) & (dg.Trade['T_CA_ID']==acct_id) ,
+        ['T_CA_ID','T_BID_PRICE','T_EXEC_NAME','T_IS_CASH','T_ID','T_TRADE_PRICE'
+         ,'T_DTS']]
+        trade = trade[:max_trades]
+        trade_id = list(trade['T_ID'])
+        profile['T_DTS'] = list(trade['T_DTS'].values)
+        profile['T_CA_ID'] = list(trade['T_CA_ID'].values)
+        profile['T_BID_PRICE'] = list(trade['T_BID_PRICE'].values)
+        profile['T_EXEC_NAME'] = list(trade['T_EXEC_NAME'].values)
+        profile['T_IS_CASH'] = list(trade['T_IS_CASH'].values)
+        profile['T_ID'] = list(trade['T_ID'].values)
+        profile['T_TRADE_PRICE'] = list(trade['T_TRADE_PRICE'].values)
+        settlement=dg.Settlement.loc[dg.Settlement['SE_T_ID'].isin(trade_id),
+        ['SE_AMT','SE_CASH_DUE_DATE','SE_CASH_TYPE']]
+        profile['SE_T_ID'] = trade_id
+        profile['SE_AMT'] = list(settlement['SE_AMT'].values)
+        profile['SE_CASH_DUE_DATE'] = list(settlement['SE_CASH_DUE_DATE'].values)
+        profile['SE_CASH_TYPE'] = list(settlement['SE_CASH_TYPE'].values)
+        cash = pd.DataFrame()
+        for row in trade.iterrows():
+            tid = row[1]['T_ID']
+            tcash = row[1]['T_IS_CASH']
+            if tcash==1:
+                iscash = dg.CashTransaction.loc[dg.CashTransaction['CT_T_ID']==tid,['CT_T_ID','CT_AMT','CT_DTS','CT_NAME']]
+                cash = cash.append(iscash)
+        profile['CT_T_ID'] = list(cash['CT_T_ID'].values)
+        profile['CT_AMT'] = list(cash['CT_AMT'].values)
+        profile['CT_DTS'] = list(cash['CT_DTS'].values)
+        profile['CT_NAME'] = list(cash['CT_NAME'].values)
+        tradehistory = dg.TradeHistory.loc[dg.TradeHistory['TH_T_ID'].isin(trade_id),['TH_T_ID','TH_DTS','TH_ST_ID']]
+        profile['TH_T_ID'] = list(tradehistory['TH_T_ID'].values)
+        profile['TH_DTS'] = list(tradehistory['TH_DTS'].values)
+        profile['TH_ST_ID'] = list(tradehistory['TH_ST_ID'].values)
+        
+        createProfile(profile," tradelookup " + str(2) + " " + str(acct_id))
+        return frame_to_execute , max_trades , acct_id , start_trade_dts , end_trade_dts, trade , settlement , cash , tradehistory
+
+    elif frame_to_execute == 3:
+        if max_trades==0:
+            max_trades = 20
+            security = list(dg.Security['S_SYMB'])
+            symbol = security[np.random.randint(len(security))] 
+            date=random.sample(list(dg.Trade['T_DTS']),2)
+            start_trade_dts = min(date)
+            end_trade_dts = max(date)
+        trade = dg.Trade.loc[(dg.Trade['T_DTS']>=start_trade_dts) & 
+        (dg.Trade['T_DTS']<=end_trade_dts) & (dg.Trade['T_S_SYMB']==symbol) ,
+        ['T_S_SYMB','T_CA_ID','T_EXEC_NAME','T_IS_CASH','T_ID','T_TRADE_PRICE',
+         'T_QTY','T_TT_ID','T_DTS']]
+        trade = trade[:max_trades]
+        trade_id = list(trade['T_ID'])
+        profile['T_DTS'] = list(trade['T_DTS'].values)
+        profile['T_S_SYMB'] = list(trade['T_S_SYMB'].values)
+        profile['T_CA_ID'] = list(trade['T_CA_ID'].values)
+        profile['T_EXEC_NAME'] = list(trade['T_EXEC_NAME'].values)
+        profile['T_IS_CASH'] = list(trade['T_IS_CASH'].values)
+        profile['T_ID'] = list(trade['T_ID'].values)
+        profile['T_TRADE_PRICE'] = list(trade['T_TRADE_PRICE'].values)
+        profile['T_QTY'] = list(trade['T_QTY'].values)
+        profile['T_TT_ID'] = list(trade['T_TT_ID'].values)
+        settlement=dg.Settlement.loc[dg.Settlement['SE_T_ID'].isin(trade_id),
+        ['SE_AMT','SE_CASH_DUE_DATE','SE_CASH_TYPE']]
+        profile['SE_T_ID'] = trade_id
+        profile['SE_AMT'] = list(settlement['SE_AMT'].values)
+        profile['SE_CASH_DUE_DATE'] = list(settlement['SE_CASH_DUE_DATE'].values)
+        profile['SE_CASH_TYPE'] = list(settlement['SE_CASH_TYPE'].values)
+        cash = pd.DataFrame()
+        for row in trade.iterrows():
+            tid = row[1]['T_ID']
+            tcash = row[1]['T_IS_CASH']
+            if tcash==1:
+                iscash = dg.CashTransaction.loc[dg.CashTransaction['CT_T_ID']==tid,['CT_T_ID','CT_AMT','CT_DTS','CT_NAME']]
+                cash = cash.append(iscash)
+        profile['CT_T_ID'] = list(cash['CT_T_ID'].values)
+        profile['CT_AMT'] = list(cash['CT_AMT'].values)
+        profile['CT_DTS'] = list(cash['CT_DTS'].values)
+        profile['CT_NAME'] = list(cash['CT_NAME'].values)
+        tradehistory = dg.TradeHistory.loc[dg.TradeHistory['TH_T_ID'].isin(trade_id),['TH_T_ID','TH_DTS','TH_ST_ID']]
+        profile['TH_T_ID'] = list(tradehistory['TH_T_ID'].values)
+        profile['TH_DTS'] = list(tradehistory['TH_DTS'].values)
+        profile['TH_ST_ID'] = list(tradehistory['TH_ST_ID'].values)
+        
+        createProfile(profile," tradelookup " + str(3))
+        return frame_to_execute , max_trades , symbol , start_trade_dts , end_trade_dts, trade , settlement , cash , tradehistory
     
+    elif frame_to_execute==4:
+        if max_trades == 0:
+            max_trades = 20
+            group = np.random.randint(2)
+            if group == 0:
+                customers = list(dg.Customer['C_ID'])
+            else:
+                tier = np.random.randint(1,4)
+                customers = list(dg.Customer.loc[dg.Customer['C_TIER']==tier,'C_ID'])
+            cust_id = customers[np.random.randint(len(customers))]
+            accounts = list(dg.CustomerAccount.loc[dg.CustomerAccount['CA_C_ID']==cust_id,'CA_ID'])
+            acct_id = accounts[np.random.randint(len(accounts))]
+            date=random.sample(list(dg.Trade['T_DTS']),2)
+            start_trade_dts = date[0]
+        trade_id = dg.Trade.loc[(dg.Trade['T_DTS']>=start_trade_dts) & 
+        (dg.Trade['T_CA_ID']==acct_id) ,'T_ID'][:1].values[0]
+        profile['T_CA_ID'] = [acct_id]
+        profile['T_DTS'] = [start_trade_dts]
+        profile['T_ID'] = [trade_id]
+        holdinghistory_id = dg.HoldingHistory.loc[dg.HoldingHistory['HH_T_ID']==trade_id,'HH_H_T_ID'].values[0]
+        holdinghistory = dg.HoldingHistory.loc[dg.HoldingHistory['HH_H_T_ID']==holdinghistory_id,['HH_H_T_ID',
+         'HH_T_ID','HH_BEFORE_QTY','HH_AFTER_QTY']][:max_trades]
+        profile['HH_T_ID'] = list(holdinghistory['HH_T_ID'].values)
+        profile['HH_H_T_ID'] = list(holdinghistory['HH_H_T_ID'].values)
+        profile['HH_BEFORE_QTY'] = list(holdinghistory['HH_BEFORE_QTY'].values)
+        profile['HH_AFTER_QTY'] = list(holdinghistory['HH_AFTER_QTY'].values)
+        
+        createProfile(profile," tradelookup " + str(2) + " " + str(acct_id))
+        return frame_to_execute , max_trades , acct_id , start_trade_dts , trade_id , holdinghistory
+        
+        
