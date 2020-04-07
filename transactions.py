@@ -633,4 +633,65 @@ def tradelookup(acct_id=0,end_trade_dts='',frame_to_execute='',max_acct_id=0,max
         createProfile(profile," tradelookup " + str(2) + " " + str(acct_id))
         return frame_to_execute , max_trades , acct_id , start_trade_dts , trade_id , holdinghistory
         
-        
+###############################TRADE STATUS TRANSACTION########################
+def tradestatus(acct_id = ''):
+    profile = {}
+    if acct_id == '':
+        group = np.random.randint(2)
+        if group == 0:
+            customers = list(dg.Customer['C_ID'])
+        else:
+            tier = np.random.randint(1,4)
+            customers = list(dg.Customer.loc[dg.Customer['C_TIER']==tier,'C_ID'])
+        cust_id = customers[np.random.randint(len(customers))]
+        accounts = list(dg.CustomerAccount.loc[dg.CustomerAccount['CA_C_ID']==cust_id,'CA_ID'])
+        acct_id = accounts[np.random.randint(len(accounts))]
+    trade = dg.Trade.loc[dg.Trade['T_CA_ID']==acct_id,['T_CA_ID','T_ID','T_DTS',
+    'T_S_SYMB','T_QTY','T_EXEC_NAME','T_CHRG','T_ST_ID','T_TT_ID']][-50:]
+    tradetype = dg.TradeType.loc[dg.TradeType['TT_ID'].isin(list(trade['T_TT_ID'].values)),
+    ['TT_ID','TT_NAME']]
+    statustype = dg.StatusType.loc[dg.StatusType['ST_ID'].isin(list(trade['T_ST_ID'].values)),
+    ['ST_ID','ST_NAME']]
+    security = dg.Security.loc[dg.Security['S_SYMB'].isin(list(trade['T_S_SYMB'].values)),
+    ['S_SYMB','S_NAME','S_EX_ID']]
+    exchange = dg.Exchange.loc[dg.Exchange['EX_ID'].isin(list(security['S_EX_ID'].values)),
+    ['EX_ID','EX_NAME']]
+    security = security.set_index('S_EX_ID',drop=False).join(exchange.set_index('EX_ID',drop=False))
+    trade = trade.set_index('T_TT_ID',drop=False).join(tradetype.set_index('TT_ID',drop=False))
+    trade = trade.set_index('T_ST_ID',drop=False).join(statustype.set_index('ST_ID',drop=False))
+    trade = trade.set_index('T_S_SYMB',drop=False).join(security.set_index('S_SYMB',drop=False))
+    profile['T_CA_ID'] = list(trade['T_CA_ID'].values)
+    profile['T_ID'] = list(trade['T_ID'].values)
+    profile['T_DTS'] = list(trade['T_DTS'].values)
+    profile['T_S_SYMB'] = list(trade['T_S_SYMB'].values)
+    profile['T_QTY'] = list(trade['T_QTY'].values)
+    profile['T_EXEC_NAME'] = list(trade['T_EXEC_NAME'].values)
+    profile['T_CHRG'] = list(trade['T_CHRG'].values)
+    profile['T_ST_ID'] = list(trade['T_ST_ID'].values)
+    profile['T_TT_ID'] = list(trade['T_TT_ID'].values)
+    profile['TT_ID'] = list(trade['TT_ID'].values)
+    profile['TT_NAME'] = list(trade['TT_NAME'].values)
+    profile['ST_ID'] = list(trade['ST_ID'].values)
+    profile['ST_NAME'] = list(trade['ST_NAME'].values)
+    profile['S_SYMB'] = list(trade['S_SYMB'].values)
+    profile['S_NAME'] = list(trade['S_NAME'].values)
+    profile['S_EX_ID'] = list(trade['S_EX_ID'].values)
+    profile['EX_ID'] = list(trade['EX_ID'].values)
+    profile['EX_NAME'] = list(trade['EX_NAME'].values)
+    customeraccount = dg.CustomerAccount.loc[dg.CustomerAccount['CA_ID'] == acct_id,['CA_C_ID','CA_B_ID']]
+    customer_id = customeraccount['CA_C_ID'].values[0]
+    broker_id = customeraccount['CA_B_ID'].values[0]
+    customer = dg.Customer.loc[dg.Customer['C_ID']==customer_id,['C_ID',
+    'C_F_NAME','C_L_NAME']]
+    broker = dg.Broker.loc[dg.Broker['B_ID']==broker_id,['B_ID','B_NAME']]
+    profile['CA_ID'] = [acct_id]
+    profile['CA_C_ID'] = [customer_id]
+    profile['CA_B_ID'] = [broker_id]
+    profile['C_ID'] = list(customer['C_ID'].values)
+    profile['C_F_NAME'] = list(customer['C_F_NAME'].values)
+    profile['C_L_NAME'] = list(customer['C_L_NAME'].values)
+    profile['B_ID'] = list(broker['B_ID'].values)
+    profile['B_NAME'] = list(broker['B_NAME'].values)
+    
+    createProfile(profile," tradestatus " + str(acct_id))
+    return acct_id,trade,customer,broker
