@@ -5,6 +5,8 @@ import datagen as dg
 import numpy as np
 import pandas as pd
 import random
+import datetime
+simulation_start_date = datetime.datetime.now()
 
 ##########################profile creation#####################################
 def createProfile(profile,trans):
@@ -206,7 +208,13 @@ def customerposition(cust_id='', get_history='', tax_id='',account_id_idx=''):
         return cust_id,tax_id,account_id,customer_info,cash_balance,assets_total
 
 ############################MARKET FEED TRANSACTION############################
-#def marketfeed():
+def marketfeed():
+    trade_start = min(list(dg.TradeHistory['TH_DTS']))
+    base_time = max(list(dg.TradeHistory['TH_DTS']))
+    base_time = datetime.datetime.strptime(base_time,"%Y-%m-%d %H:%M:%S.%f")
+    current_time = datetime.datetime.now()
+    current_time = current_time - simulation_start_date + base_time
+    security = random.sample(list(dg.Security['S_SYMB']),20)
  
 ############################MARKET WATCH TRANSACTION###########################
 def marketwatch(acct_id=0,cust_id=0,industry_name='',ending_co_id=0,starting_co_id=0,start_date=''):
