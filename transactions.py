@@ -212,9 +212,31 @@ def marketfeed():
     trade_start = min(list(dg.TradeHistory['TH_DTS']))
     base_time = max(list(dg.TradeHistory['TH_DTS']))
     base_time = datetime.datetime.strptime(base_time,"%Y-%m-%d %H:%M:%S.%f")
+    trade_start = datetime.datetime.strptime(trade_start,"%Y-%m-%d %H:%M:%S.%f")
     current_time = datetime.datetime.now()
     current_time = current_time - simulation_start_date + base_time
     security = random.sample(list(dg.Security['S_SYMB']),20)
+    msPerPeriod = 900000000
+    price_quote = []
+    for symbol in security:
+        securityIndex = dg.Security.loc[dg.Security['S_SYMB'] == symbol].index.values[0]
+        securityFactor =securityIndex*556237 + 253791
+        trading_time = dg.LastTrade.loc[dg.LastTrade['LT_S_SYMB']==symbol,'LT_DTS'].values[0] 
+        trading_time = datetime.datetime.strptime(trading_time,"%Y-%m-%d %H:%M:%S.%f")
+        timesofar = current_time - trading_time
+        timesofar = timesofar.seconds * 1000000 + timesofar.microseconds
+        initialtime = (timesofar + securityFactor) % msPerPeriod
+        initialtime = initialtime / 1000000
+        ftime = current_time - trade_start
+        ftime = ftime.seconds
+        fperiodtime = (ftime + initialtime)/900
+        ftimeinperiod = (fperiodtime - int(fperiodtime))*900
+        if ftimeinperiod < (900/2):
+            fPricePosition = ftimeinperiod / (900 / 2)
+        else:
+            fPricePosition = (900 - ftimeinperiod) / (900/ 2)
+        price = 20 + 10*fPricePosition
+        price_quote.append(price)
  
 ############################MARKET WATCH TRANSACTION###########################
 def marketwatch(acct_id=0,cust_id=0,industry_name='',ending_co_id=0,starting_co_id=0,start_date=''):
