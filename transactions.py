@@ -209,15 +209,37 @@ def customerposition(cust_id='', get_history='', tax_id='',account_id_idx=''):
 
 ############################MARKET FEED TRANSACTION############################
 def marketfeed():
+    profile = {}
     trade_start = min(list(dg.TradeHistory['TH_DTS']))
     base_time = max(list(dg.TradeHistory['TH_DTS']))
     base_time = datetime.datetime.strptime(base_time,"%Y-%m-%d %H:%M:%S.%f")
     trade_start = datetime.datetime.strptime(trade_start,"%Y-%m-%d %H:%M:%S.%f")
     current_time = datetime.datetime.now()
     current_time = current_time - simulation_start_date + base_time
-    security = random.sample(list(dg.Security['S_SYMB']),20)
+    current_time_string = datetime.datetime.strftime(current_time,"%Y-%m-%d %H:%M:%S.%f")
+    traderequest = dg.TradeRequest[['TR_S_SYMB','TR_QTY']]
+    security = list(traderequest['TR_S_SYMB'])
+    trade_qty = list(traderequest['TR_QTY'])
+    '''security = random.sample(list(dg.Security['S_SYMB']),20)
+    trade_qty = [np.random.randint(1,6) for i in range(20)]'''
     msPerPeriod = 900000000
     price_quote = []
+    cntr = 0
+    profile['LT_S_SYMB'] = []
+    profile['LT_PRICE'] = []
+    profile['LT_VOL'] = []
+    profile['LT_DTS'] = []
+    profile['TR_S_SYMB'] = security
+    profile['TR_T_ID'] = list(dg.TradeRequest['TR_T_ID'])
+    profile['TR_BID_PRICE'] = list(dg.TradeRequest['TR_BID_PRICE']) 
+    profile['TR_TT_ID'] = list(dg.TradeRequest['TR_TT_ID'])
+    profile['TR_QTY'] = trade_qty
+    profile['TR_T_ID'] = []
+    profile['T_DTS'] = []
+    profile['T_ST_ID'] = []
+    profile["TH_T_ID"] = []
+    profile["TH_DTS"] = []
+    profile["TH_ST_ID"] = []
     for symbol in security:
         securityIndex = dg.Security.loc[dg.Security['S_SYMB'] == symbol].index.values[0]
         securityFactor =securityIndex*556237 + 253791
@@ -237,6 +259,39 @@ def marketfeed():
             fPricePosition = (900 - ftimeinperiod) / (900/ 2)
         price = 20 + 10*fPricePosition
         price_quote.append(price)
+        index = dg.LastTrade['LT_S_SYMB']==symbol
+        dg.LastTrade.loc[index,'LT_PRICE'] = price
+        dg.LastTrade.loc[index,'LT_VOL'] += trade_qty[cntr]
+        dg.LastTrade.loc[index,'LT_DTS'] = current_time_string
+        profile['LT_S_SYMB'].append(symbol)
+        profile['LT_PRICE'].append(price)
+        profile['LT_VOL'].append(dg.LastTrade.loc[index,'LT_VOL'].values[0])
+        profile['LT_DTS'].append(current_time_string)
+        tradehappen = dg.TradeRequest.loc[(dg.TradeRequest['TR_S_SYMB']==symbol) & (
+        ((dg.TradeRequest['TR_TT_ID']=='TSL')&(dg.TradeRequest['TR_BID_PRICE']>=price))
+        | ((dg.TradeRequest['TR_TT_ID']=='TLS')&(dg.TradeRequest['TR_BID_PRICE']<=price))
+        | ((dg.TradeRequest['TR_TT_ID']=='TLB')&(dg.TradeRequest['TR_BID_PRICE']>=price))
+        ),['TR_T_ID','TR_BID_PRICE','TR_TT_ID','TR_QTY']]
+        if tradehappen.shape[0] != 0 :
+            trade_id = tradehappen['TR_T_ID'].values[0]
+            index = dg.Trade['T_ID'] == trade_id
+            dg.Trade.loc[index,'T_DTS'] = current_time_string
+            dg.Trade.loc[index,'T_ST_ID'] = 'SBMT'
+            profile['TR_T_ID'].append(trade_id)
+            profile['T_DTS'].append(current_time_string)
+            profile['T_ST_ID'].append('SBMT')
+            history = pd.DataFrame({"TH_T_ID":[trade_id],"TH_DTS":[current_time_string],"TH_ST_ID":['SBMT']})
+            profile["TH_T_ID"].append(trade_id)
+            profile["TH_DTS"].append(current_time_string)
+            profile["TH_ST_ID"].append('SBMT')
+            dg.TradeHistory = dg.TradeHistory.append(history)
+            request_index = tradehappen.index.values[0]
+            dg.TradeRequest.drop(index = request_index,inplace = True)
+        cntr += 1
+        
+    createProfile(profile, " marketfeed")
+    return len(security)
+    
  
 ############################MARKET WATCH TRANSACTION###########################
 def marketwatch(acct_id=0,cust_id=0,industry_name='',ending_co_id=0,starting_co_id=0,start_date=''):
