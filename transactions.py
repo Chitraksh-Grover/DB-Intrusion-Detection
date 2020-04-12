@@ -506,7 +506,11 @@ def securitydetail(access_lob_flag = '',max_rows_to_return = '',start_day = '',s
     profile['LT_OPEN_PRICE'] = list(lasttrade['LT_OPEN_PRICE'].values)
     profile['LT_VOL'] = list(lasttrade['LT_VOL'].values)
     if access_lob_flag == '':
-        access_lob_flag = np.random.randint(2)
+        prob = uniform(0,1)
+        if prob < 99 :
+            access_lob_flag = 0
+        else:
+            access_lob_flag = 1
     if access_lob_flag == 1:
         newsxref = dg.NewsXRef.loc[dg.NewsXRef['NX_CO_ID'] == company['CO_ID'].values[0],
         ['NX_CO_ID','NX_NI_ID']].head(2)
@@ -542,7 +546,15 @@ def securitydetail(access_lob_flag = '',max_rows_to_return = '',start_day = '',s
 ###############################TRADE LOOKUP TRANSACTION########################
 def tradelookup(acct_id=0,end_trade_dts='',frame_to_execute='',max_acct_id=0,max_trades=0,start_trade_dts='',symbol='',trade_id=[]):
     if frame_to_execute=='':
-        frame_to_execute=np.random.randint(1,5)
+        prob=random.uniform(0,1)
+        if prob<30:
+            frame_to_execute = 1
+        elif prob<60:
+            frame_to_execute = 2
+        elif prob<90:
+            frame_to_execute = 3
+        else:
+            frame_to_execute = 4
 
     profile = {}
     if frame_to_execute==1:
@@ -717,6 +729,133 @@ def tradelookup(acct_id=0,end_trade_dts='',frame_to_execute='',max_acct_id=0,max
         
         createProfile(profile," tradelookup " + str(2) + " " + str(acct_id))
         return frame_to_execute , max_trades , acct_id , start_trade_dts , trade_id , holdinghistory
+
+###############################TRADE ORDER TRANSACTION#########################
+def tradeorder(acct_id = '',exec_f_name='',exec_l_name='',exec_tax_id='',is_lifo='',co_name ='',issue='',symbol='',trade_type_id='', trade_qty=''):
+    profile = {}
+    if acct_id == '':
+         group = np.random.randint(2)
+         if group == 0:
+             customers = list(dg.Customer['C_ID'])
+         else:
+            tier = np.random.randint(1,4)
+            customers = list(dg.Customer.loc[dg.Customer['C_TIER']==tier,'C_ID'])
+         cust_id = customers[np.random.randint(len(customers))]
+         accounts = list(dg.CustomerAccount.loc[dg.CustomerAccount['CA_C_ID']==cust_id,'CA_ID'])
+         acct_id = accounts[np.random.randint(len(accounts))]
+    account = dg.CustomerAccount.loc[dg.CustomerAccount['CA_ID']==acct_id,
+    ['CA_NAME','CA_C_ID','CA_B_ID','CA_TAX_ST']]
+    profile['CA_ID'] = [acct_id]
+    profile['CA_NAME'] = list(account['CA_NAME'].values)
+    profile['CA_C_ID'] = list(account['CA_C_ID'].values)
+    profile['CA_B_ID'] = list(account['CA_B_ID'].values)
+    profile['CA_TAX_ST'] = list(account['CA_TAX_ST'].values)
+    cust_id = account['CA_C_ID'].values[0]
+    broker_id = account['CA_B_ID'].values[0]
+    customer = dg.Customer.loc[dg.Customer['C_ID']==cust_id,['C_F_NAME',
+    'C_L_NAME','C_TIER','C_TAX_ID']]
+    profile['C_ID'] = [cust_id]
+    profile['C_F_NAME'] = list(customer['C_F_NAME'].values)
+    profile['C_L_NAME'] = list(customer['C_L_NAME'].values)
+    profile['C_TIER'] = list(customer['C_TIER'].values)
+    profile['C_TAX_ID'] = list(customer['C_TAX_ID'].values)
+    broker = dg.Broker.loc[dg.Broker['B_ID']==broker_id,'B_NAME']
+    profile['B_ID'] = broker_id
+    profile['B_NAME'] = list(broker.values)
+    if exec_f_name == '':
+        prob = random.uniform(0,1)
+        if prob<15:
+            executioner = dg.AccountPermission.loc[dg.AccountPermission['AP_CA_ID']==acct_id,
+            ['AP_F_NAME','AP_L_NAME','AP_TAX_ID']].values
+            size = len(executioner)
+            pos = np.random.randint(size)
+            exec_f_name = executioner[pos][0]
+            exec_l_name = executioner[pos][1]
+            exec_tax_id = executioner[pos][2]
+        else:
+            exec_f_name = customer['C_F_NAME'].values[0]
+            exec_l_name = customer['C_L_NAME'].values[0]
+            exec_tax_id = customer['C_TAX_ID'].values[0]
+    
+    if ((exec_f_name != customer['C_F_NAME'].values[0])
+    or (exec_l_name != customer['C_L_NAME'].values[0])
+    or (exec_tax_id != customer['C_TAX_ID'].values[0])):
+        executioner = dg.AccountPermission.loc[
+        (dg.AccountPermission['AP_CA_ID']==acct_id)
+        &(dg.AccountPermission['AP_F_NAME'] == exec_f_name)
+        &(dg.AccountPermission['AP_L_NAME'] == exec_l_name)
+        &(dg.AccountPermission['AP_TAX_ID'] == exec_f_name),
+        ['AP_CA_ID','AP_F_NAME','AP_L_NAME','AP_TAX_ID','AP_ACL']]
+        size = executioner.shape[0]
+        profile['AP_CA_ID']=list(executioner['AP_CA_ID'].values)
+        profile['AP_F_NAME']=list(executioner['AP_F_NAME'].values)
+        profile['AP_L_NAME']=list(executioner['AP_L_NAME'].values)
+        profile['AP_TAX_ID']=list(executioner['AP_TAX_ID'].values)
+        profile['AP_ACL']=list(executioner['AP_ACL'].values)
+        if size == 0:
+            createProfile(profile," trade order no access")
+            return no access
+     
+    if symbol=='' and co_name=='':
+        prob = random.uniform(0, 1)
+        if prob<40:
+            company = list(dg.Company['CO_NAME'])
+            co_name = company[np.random.randint(len(company))]
+            coid = dg.Company.loc[dg.Company['CO_NAME']==co_name,'CO_ID'].values[0]
+            issue = list(dg.Security.loc[dg.Security['S_CO_ID']==coid,'S_ISSUE'].values)
+            issue = issue[np.random.randint(len(issue))]
+        else:
+            security = list(dg.Security['S_SYMB'])
+            symbol = security[np.random.randint(len(security))]
+    if symbol =='':
+        company_id = dg.Company.loc[dg.Company['CO_NAME']==co_name,'CO_ID'].values[0]
+        security = dg.Security.loc[(dg.Security['S_CO_ID']==coid)
+        &(dg.Security['S_ISSUE'] == issue),['S_EX_ID','S_NAME','S_SYMB']]
+        symbol = security['S_SYMB'].values[0]
+    else:
+        security = dg.Security.loc[dg.Security['S_SYMB']==symbol,
+        ['S_CO_ID','S_EX_ID','S_NAME']]
+        company_id = security['S_CO_ID'].values[0]
+        co_name = dg.Company.loc[dg.Company['CO_ID']==company_id,'CO_NAME'].values[0]
+    market_price = dg.LastTrade.loc[dg.LastTrade['LT_S_SYMB']==symbol,'LT_PRICE'].values[0]
+if True:
+    trade_type_id = ''    
+    if trade_type_id =='':
+        prob = random.uniform(0, 1)
+        if prob<30:
+            trade_type_id = 'TMB'
+        elif prob<60:
+            trade_type_id = 'TMS'
+        elif prob<80:
+            trade_type_id = 'TLB'
+        elif prob<90:
+            trade_type_id = 'TLS'
+        else:
+            trade_type_id = 'TSL'
+    tradetype = dg.TradeType.loc[dg.TradeType['TT_ID']==trade_type_id,
+    ['TT_IS_MRKT','TT_IS_SELL']]
+    type_is_market = tradetype['TT_IS_MRKT'].values[0] 
+    type_is_sell = tradetype['TT_IS_SELL'].values[0]
+    
+    if type_is_market:
+        requested_price = market_price
+    
+    if trade_qty == '' :
+        trade_qty = 200*np.random.randint(1,5)
+    
+    hs_qty = dg.HoldingSummary.loc[(dg.HoldingSummary['HS_CA_ID']==acct_id) & 
+    (dg.HoldingSummary['HS_S_SYMB']==symbol),'HS_QTY'].values
+    if len(hs_qty) == 0:
+        hs_qty = 0
+    else:
+        hs_qty = hs_qty[0]
+    
+    if type_is_sell:
+        if hs_qty>0:
+            
+    
+    
+        
         
 ###############################TRADE STATUS TRANSACTION########################
 def tradestatus(acct_id = ''):
@@ -780,3 +919,4 @@ def tradestatus(acct_id = ''):
     
     createProfile(profile," tradestatus " + str(acct_id))
     return acct_id,trade,customer,broker
+
