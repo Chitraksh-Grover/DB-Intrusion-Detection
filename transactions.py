@@ -506,8 +506,8 @@ def securitydetail(access_lob_flag = '',max_rows_to_return = '',start_day = '',s
     profile['LT_OPEN_PRICE'] = list(lasttrade['LT_OPEN_PRICE'].values)
     profile['LT_VOL'] = list(lasttrade['LT_VOL'].values)
     if access_lob_flag == '':
-        prob = uniform(0,1)
-        if prob < 99 :
+        prob = random.uniform(0,1)
+        if prob < 0.99 :
             access_lob_flag = 0
         else:
             access_lob_flag = 1
@@ -547,11 +547,11 @@ def securitydetail(access_lob_flag = '',max_rows_to_return = '',start_day = '',s
 def tradelookup(acct_id=0,end_trade_dts='',frame_to_execute='',max_acct_id=0,max_trades=0,start_trade_dts='',symbol='',trade_id=[]):
     if frame_to_execute=='':
         prob=random.uniform(0,1)
-        if prob<30:
+        if prob < 0.30:
             frame_to_execute = 1
-        elif prob<60:
+        elif prob < 0.60:
             frame_to_execute = 2
-        elif prob<90:
+        elif prob < 0.90:
             frame_to_execute = 3
         else:
             frame_to_execute = 4
@@ -731,7 +731,7 @@ def tradelookup(acct_id=0,end_trade_dts='',frame_to_execute='',max_acct_id=0,max
         return frame_to_execute , max_trades , acct_id , start_trade_dts , trade_id , holdinghistory
 
 ###############################TRADE ORDER TRANSACTION#########################
-def tradeorder(acct_id = '',exec_f_name='',exec_l_name='',exec_tax_id='',is_lifo='',co_name ='',issue='',symbol='',trade_type_id='', trade_qty=''):
+def tradeorder(acct_id = '',exec_f_name='',exec_l_name='',exec_tax_id='',is_lifo='',co_name ='',issue='',symbol='',trade_type_id='', trade_qty='',type_is_margin='',roll_it_back='',requested_price=''):
     profile = {}
     if acct_id == '':
          group = np.random.randint(2)
@@ -745,6 +745,7 @@ def tradeorder(acct_id = '',exec_f_name='',exec_l_name='',exec_tax_id='',is_lifo
          acct_id = accounts[np.random.randint(len(accounts))]
     account = dg.CustomerAccount.loc[dg.CustomerAccount['CA_ID']==acct_id,
     ['CA_NAME','CA_C_ID','CA_B_ID','CA_TAX_ST']]
+    tax_status = account['CA_TAX_ST'].values[0]
     profile['CA_ID'] = [acct_id]
     profile['CA_NAME'] = list(account['CA_NAME'].values)
     profile['CA_C_ID'] = list(account['CA_C_ID'].values)
@@ -754,17 +755,18 @@ def tradeorder(acct_id = '',exec_f_name='',exec_l_name='',exec_tax_id='',is_lifo
     broker_id = account['CA_B_ID'].values[0]
     customer = dg.Customer.loc[dg.Customer['C_ID']==cust_id,['C_F_NAME',
     'C_L_NAME','C_TIER','C_TAX_ID']]
+    cust_tier = customer['C_TIER'].values[0]
     profile['C_ID'] = [cust_id]
     profile['C_F_NAME'] = list(customer['C_F_NAME'].values)
     profile['C_L_NAME'] = list(customer['C_L_NAME'].values)
     profile['C_TIER'] = list(customer['C_TIER'].values)
     profile['C_TAX_ID'] = list(customer['C_TAX_ID'].values)
     broker = dg.Broker.loc[dg.Broker['B_ID']==broker_id,'B_NAME']
-    profile['B_ID'] = broker_id
+    profile['B_ID'] = [broker_id]
     profile['B_NAME'] = list(broker.values)
     if exec_f_name == '':
         prob = random.uniform(0,1)
-        if prob<15:
+        if prob < 0.15:
             executioner = dg.AccountPermission.loc[dg.AccountPermission['AP_CA_ID']==acct_id,
             ['AP_F_NAME','AP_L_NAME','AP_TAX_ID']].values
             size = len(executioner)
@@ -794,11 +796,11 @@ def tradeorder(acct_id = '',exec_f_name='',exec_l_name='',exec_tax_id='',is_lifo
         profile['AP_ACL']=list(executioner['AP_ACL'].values)
         if size == 0:
             createProfile(profile," trade order no access")
-            return no access
+            '''return''' "no access"
      
     if symbol=='' and co_name=='':
         prob = random.uniform(0, 1)
-        if prob<40:
+        if prob<0.40:
             company = list(dg.Company['CO_NAME'])
             co_name = company[np.random.randint(len(company))]
             coid = dg.Company.loc[dg.Company['CO_NAME']==co_name,'CO_ID'].values[0]
@@ -809,26 +811,41 @@ def tradeorder(acct_id = '',exec_f_name='',exec_l_name='',exec_tax_id='',is_lifo
             symbol = security[np.random.randint(len(security))]
     if symbol =='':
         company_id = dg.Company.loc[dg.Company['CO_NAME']==co_name,'CO_ID'].values[0]
-        security = dg.Security.loc[(dg.Security['S_CO_ID']==coid)
+        profile['CO_NAME'] = [co_name]
+        profile['CO_ID'] = [company_id]
+        security = dg.Security.loc[(dg.Security['S_CO_ID']==company_id)
         &(dg.Security['S_ISSUE'] == issue),['S_EX_ID','S_NAME','S_SYMB']]
         symbol = security['S_SYMB'].values[0]
+        profile['S_CO_ID'] = [company_id]
+        profile['S_ISSUE'] = [issue]
+        profile['S_EX_ID'] = list(security['S_EX_ID'].values)
+        profile['S_NAME'] = list(security['S_NAME'].values)
+        profile['S_SYMB'] = list(security['S_SYMB'].values)
     else:
         security = dg.Security.loc[dg.Security['S_SYMB']==symbol,
         ['S_CO_ID','S_EX_ID','S_NAME']]
+        profile['S_SYMB'] = [symbol]
+        profile['S_CO_ID'] = list(security['S_CO_ID'].values)
+        profile['S_EX_ID'] = list(security['S_EX_ID'].values)
+        profile['S_NAME'] = list(security['S_NAME'].values)
         company_id = security['S_CO_ID'].values[0]
         co_name = dg.Company.loc[dg.Company['CO_ID']==company_id,'CO_NAME'].values[0]
+        profile['CO_ID'] = [company_id]
+        profile['CO_NAME'] = [co_name]
+    exch_id = security['S_EX_ID'].values[0]
     market_price = dg.LastTrade.loc[dg.LastTrade['LT_S_SYMB']==symbol,'LT_PRICE'].values[0]
-if True:
-    trade_type_id = ''    
+    profile['LT_S_SYMB'] = [symbol]
+    profile['LT_PRICE'] = [market_price]
+   
     if trade_type_id =='':
         prob = random.uniform(0, 1)
-        if prob<30:
+        if prob<0.30:
             trade_type_id = 'TMB'
-        elif prob<60:
+        elif prob<0.60:
             trade_type_id = 'TMS'
-        elif prob<80:
+        elif prob<0.80:
             trade_type_id = 'TLB'
-        elif prob<90:
+        elif prob<0.90:
             trade_type_id = 'TLS'
         else:
             trade_type_id = 'TSL'
@@ -837,12 +854,21 @@ if True:
     type_is_market = tradetype['TT_IS_MRKT'].values[0] 
     type_is_sell = tradetype['TT_IS_SELL'].values[0]
     
+    profile['TT_ID'] = [trade_type_id]
+    profile['TT_IS_MRKT'] = [type_is_market]
+    profile['TT_IS_SELL'] = [type_is_sell]
+    
+    if requested_price == '':
+        requested_price = random.uniform(20,30)
+        
     if type_is_market:
         requested_price = market_price
     
     if trade_qty == '' :
         trade_qty = 200*np.random.randint(1,5)
-    
+    needed_qty = trade_qty
+    buy_value = 0.0
+    sell_value = 0.0
     hs_qty = dg.HoldingSummary.loc[(dg.HoldingSummary['HS_CA_ID']==acct_id) & 
     (dg.HoldingSummary['HS_S_SYMB']==symbol),'HS_QTY'].values
     if len(hs_qty) == 0:
@@ -850,13 +876,202 @@ if True:
     else:
         hs_qty = hs_qty[0]
     
+    profile['H_CA_ID'] = [acct_id]
+    profile['H_S_SYMB'] = [symbol]
+    profile['H_QTY'] = hs_qty
+        
+    if is_lifo=='':
+        prob = random.uniform(0,1)
+        if prob < 0.35:
+            is_lifo = 1
+        else:
+            is_lifo = 0
+    
     if type_is_sell:
         if hs_qty>0:
             
+            if is_lifo:
+                holding = dg.Holding.loc[(dg.Holding['H_CA_ID']==acct_id) & 
+                (dg.Holding['H_S_SYMB']==symbol),['H_QTY','H_PRICE','H_DTS']].iloc[::-1]
+            else:
+                holding = dg.Holding.loc[(dg.Holding['H_CA_ID']==acct_id) & 
+                (dg.Holding['H_S_SYMB']==symbol),['H_QTY','H_PRICE','H_DTS']]
+            
+            for row in holding.iterrows():
+                hold_qty = row[1]['H_QTY']
+                hold_price = row[1]['H_PRICE']
+                if hold_qty > needed_qty:
+                    buy_value += needed_qty * hold_price
+                    sell_value += needed_qty * requested_price
+                    needed_qty = 0
+                else :
+                    buy_value += hold_qty * hold_price
+                    sell_value += hold_qty * requested_price
+                    needed_qty = needed_qty - hold_qty
+                if needed_qty == 0:
+                    break;
+                
+            profile['H_PRICE'] = list(holding['H_PRICE'].values)
+            profile['H_DTS'] = list(holding['H_DTS'].values)
+    else:
+        if hs_qty<0:
+            if is_lifo:
+                holding = dg.Holding.loc[(dg.Holding['H_CA_ID']==acct_id) & 
+                (dg.Holding['H_S_SYMB']==symbol),['H_QTY','H_PRICE','H_DTS']].iloc[::-1]
+            else:
+                holding = dg.Holding.loc[(dg.Holding['H_CA_ID']==acct_id) & 
+                (dg.Holding['H_S_SYMB']==symbol),['H_QTY','H_PRICE','H_DTS']]
+                
+            for row in holding.iterrows():
+                hold_qty = row[1]['H_QTY']
+                hold_price = row[1]['H_PRICE']
+                if hold_qty+needed_qty<0:
+                    sell_value += needed_qty * hold_price
+                    buy_value += needed_qty * requested_price
+                    needed_qty = 0
+                else :
+                    hold_qty = -hold_qty
+                    sell_value += hold_qty * hold_price
+                    buy_value += hold_qty * requested_price
+                    needed_qty = needed_qty - hold_qty
+                
+                if needed_qty == 0:
+                    break;
+                    
+            profile['H_PRICE'] = list(holding['H_PRICE'].values)
+            profile['H_DTS'] = list(holding['H_DTS'].values)
     
+    tax_amount = 0.0
+    if (sell_value>buy_value) and ((tax_status == 1) or (tax_status == 2)):
+        tax_id = dg.CustomerTaxrate.loc[dg.CustomerTaxrate['CX_C_ID']==cust_id,'CX_TX_ID'].values
+        tax_id = list(tax_id)
+        profile['CX_C_ID'] = [cust_id for i in range(len(tax_id))]
+        profile['CX_TX_ID'] = tax_id
+        tax_rate = dg.TaxRate.loc[dg.TaxRate['TX_ID'].isin(tax_id),'TX_RATE'].values
+        profile['TX_ID'] = [tax_id for i in range(len(tax_rate))]
+        profile['TX_RATE'] = list(tax_rate)
+        tax_rate = sum(tax_rate)
+        tax_amount = (sell_value - buy_value) * tax_rate
     
+    comm = dg.CommissionRate.loc[(dg.CommissionRate['CR_C_TIER']==cust_tier)
+    &(dg.CommissionRate['CR_TT_ID']==trade_type_id)
+    &(dg.CommissionRate['CR_EX_ID']==exch_id)
+    &(dg.CommissionRate['CR_FROM_QTY']<=trade_qty)
+    &(dg.CommissionRate['CR_TO_QTY']>=trade_qty),['CR_FROM_QTY','CR_TO_QTY','CR_RATE']]
+    comm_rate = comm['CR_RATE'].values[0]
+    profile['CR_C_TIER'] = [cust_tier]
+    profile['CR_TT_ID'] = [trade_type_id]
+    profile['CR_EX_ID'] = [exch_id]
+    profile['CR_FROM_QTY'] = list(comm['CR_FROM_QTY'].values)
+    profile['CR_TO_QTY'] = list(comm['CR_TO_QTY'].values)
+    profile['CR_RATE'] = [comm_rate]
+    
+    charge_amount = dg.Charge.loc[(dg.Charge['CH_C_TIER']==cust_tier)
+    &(dg.Charge['CH_TT_ID']==trade_type_id),'CH_CHRG'].values[0]
+    profile['CH_C_TIER'] = [cust_tier]
+    profile['CH_TT_ID'] = [trade_type_id]
+    profile['CH_CHRG'] = [charge_amount]
+    
+    acct_assets = 0.0
+    hold_assets = ''
+    if type_is_margin=='':
+        prob = random.uniform(0,1)
+        if prob<0.08:
+            type_is_margin=1
+        else:
+            type_is_margin=0
+    if type_is_margin:
+        acct_bal = dg.CustomerAccount.loc[dg.CustomerAccount['CA_ID']==acct_id,'CA_BAL'].values[0]
+        profile['CA_BAL'] = [acct_bal]
+        holdingsummary = dg.HoldingSummary.loc[dg.HoldingSummary['HS_CA_ID']==acct_id,
+        ['HS_CA_ID','HS_S_SYMB','HS_QTY']]
+        qty = list(holdingsummary['HS_QTY'].values)
+        symb = list(holdingsummary['HS_S_SYMB'].values)
+        profile['HS_CA_ID'] = [acct_id for i in range(len(qty))]
+        profile['HS_S_SYMB'] = symb
+        profile['HS_QTY'] = qty
+        for i in range(len(symb)):
+            if i==0:
+                hold_assets=0
+            price = dg.LastTrade.loc[dg.LastTrade['LT_S_SYMB']==symb[i],'LT_PRICE'].values[0]
+            profile['LT_S_SYMB'].append(symb[i])
+            profile['LT_PRICE'].append(price)
+            hold_assets += qty[i]*price
+        if hold_assets == '':
+            acct_assets = acct_bal
+        else:
+            acct_assets = hold_assets + acct_bal
+    
+    if type_is_market:
+        status_id = 'SBMT'
+    else: 
+        status_id = 'PNDG'
+    
+    comm_amount = (comm_rate / 100) * trade_qty * requested_price
+    base_time = max(list(dg.TradeHistory['TH_DTS']))
+    base_time = datetime.datetime.strptime(base_time,"%Y-%m-%d %H:%M:%S.%f")
+    current_time = datetime.datetime.now()
+    current_time = current_time - simulation_start_date + base_time
+    current_time_string = datetime.datetime.strftime(current_time,"%Y-%m-%d %H:%M:%S.%f")
+    
+    trade_id = max(list(dg.Trade['T_ID'])) + 1
+    
+    if roll_it_back == '':
+        prob = random.uniform(0,1)
+        roll_it_back = 0
+        if prob<0.01:
+            roll_it_back = 1
         
-        
+    trade = pd.DataFrame({'T_ID': [trade_id] , 'T_DTS': [current_time_string] , 
+             'T_ST_ID': [status_id] ,'T_TT_ID': [trade_type_id] , 
+             'T_IS_CASH': [abs(1-type_is_margin)] ,'T_S_SYMB': [symbol] , 
+             'T_QTY': [trade_qty] , 'T_BID_PRICE': [requested_price] ,
+             'T_CA_ID': [acct_id] , 'T_EXEC_NAME': [exec_f_name + ' ' + exec_l_name] , 
+             'T_TRADE_PRICE': [0] , 'T_CHRG': [charge_amount] , 'T_COMM': [comm_amount], 
+             'T_TAX': [0] , 'T_LIFO': [is_lifo]})
+    profile['T_ID'] = list(trade['T_ID'].values)
+    profile['T_DTS'] = list(trade['T_DTS'].values)
+    profile['T_ST_ID'] = list(trade['T_ST_ID'].values)
+    profile['T_TT_ID'] = list(trade['T_TT_ID'].values)
+    profile['T_IS_CASH'] = list(trade['T_IS_CASH'].values)
+    profile['T_S_SYMB'] = list(trade['T_S_SYMB'].values)
+    profile['T_QTY'] = list(trade['T_QTY'].values)
+    profile['T_BID_PRICE'] = list(trade['T_BID_PRICE'].values)
+    profile['T_CA_ID'] = list(trade['T_CA_ID'].values)
+    profile['T_EXEC_NAME'] = list(trade['T_EXEC_NAME'].values)
+    profile['T_TRADE_PRICE'] = list(trade['T_TRADE_PRICE'].values)
+    profile['T_CHRG'] = list(trade['T_CHRG'].values)
+    profile['T_COMM'] = list(trade['T_COMM'].values)
+    profile['T_TAX'] = list(trade['T_TAX'].values)
+    profile['T_LIFO'] = list(trade['T_LIFO'].values)
+    if roll_it_back == 0:
+        dg.Trade = dg.Trade.append(trade)
+    
+    if not type_is_market:
+        traderequest_row = pd.DataFrame({'TR_T_ID': [trade_id] , 'TR_TT_ID': [trade_type_id] , 
+                            'TR_S_SYMB': [symbol] , 'TR_QTY': [trade_qty] , 
+                            'TR_BID_PRICE': [requested_price] , 
+                            'TR_B_ID': [broker_id]})
+        profile['TR_T_ID'] = list(traderequest_row['TR_T_ID'].values)
+        profile['TR_TT_ID'] = list(traderequest_row['TR_TT_ID'].values)
+        profile['TR_S_SYMB'] = list(traderequest_row['TR_S_SYMB'].values)
+        profile['TR_QTY'] = list(traderequest_row['TR_QTY'].values)
+        profile['TR_BID_PRICE'] = list(traderequest_row['TR_BID_PRICE'].values)
+        profile['TR_B_ID'] = list(traderequest_row['TR_B_ID'].values)
+        if roll_it_back == 0:
+            dg.TradeRequest = dg.TradeRequest.append(traderequest_row)
+    
+    tradehistory_row = pd.DataFrame({'TH_T_ID': [trade_id] , 
+                       'TH_DTS': [current_time_string] , 'TH_ST_ID': status_id})
+    profile['TH_T_ID'] = list(tradehistory_row['TH_T_ID'].values)
+    profile['TH_DTS'] = list(tradehistory_row['TH_DTS'].values)
+    profile['TH_ST_ID'] = list(tradehistory_row['TH_ST_ID'].values)
+    if roll_it_back == 0:
+        dg.TradeHistory = dg.TradeHistory.append(tradehistory_row)
+    
+    createProfile(profile, " tradeorder " + exec_f_name + ' ' + exec_l_name)
+    return acct_id,exec_f_name,exec_l_name,exec_tax_id,is_lifo,co_name,issue,symbol,trade_type_id,trade_qty,type_is_margin,roll_it_back,requested_price,sell_value,buy_value,tax_amount,status_id,trade_id,acct_assets
+    
 ###############################TRADE STATUS TRANSACTION########################
 def tradestatus(acct_id = ''):
     profile = {}
