@@ -1130,7 +1130,8 @@ def traderesult(trade_id=''):
     type_is_mrkt = profile['TT_IS_MRKT'][0]
     if type_is_sell:
         if hs_qty == 0:
-            holding_row = pd.DataFrame({'HS_CA_ID':acct_id,'HS_S_SYMB':symbol,'HS_QTY':-needed_qty})
+            holding_row = pd.DataFrame({'HS_CA_ID':[acct_id],'HS_S_SYMB':[symbol],
+            'HS_QTY':[-needed_qty]})
             dg.HoldingSummary = dg.HoldingSummary.append(holding_row)
             profile['HS_CA_ID'].append(acct_id)
             profile['HS_S_SYMB'].append(symbol)
@@ -1140,7 +1141,7 @@ def traderesult(trade_id=''):
             access_sequence.append('HS_QTY')
         elif hs_qty != needed_qty:
             dg.HoldingSummary.loc[(dg.HoldingSummary['HS_CA_ID'] == acct_id) & 
-            (dg.HoldingSummary['HS_S_SYMB'] = symbol),'HS_QTY'] = hs_qty - needed_qty
+            (dg.HoldingSummary['HS_S_SYMB'] == symbol),'HS_QTY'] = hs_qty - needed_qty
             profile['HS_CA_ID'].append(acct_id)
             profile['HS_S_SYMB'].append(symbol)
             profile['HS_QTY'].append(hs_qty - needed_qty)
@@ -1148,7 +1149,8 @@ def traderesult(trade_id=''):
             access_sequence.append('HS_S_SYMB')
             access_sequence.append('HS_QTY')
         is_lifo = profile['T_LIFO'][0]
-        if hs_qty<0 :
+        
+        if hs_qty>0 :
             if is_lifo:
                 holding = dg.Holding.loc[(dg.Holding['H_CA_ID']==acct_id) &
                 (dg.Holding['H_S_SYMB']==symbol),['H_T_ID','H_QTY','H_PRICE']].iloc[::-1]
@@ -1169,10 +1171,28 @@ def traderesult(trade_id=''):
                 hold_qty = row[1]['H_QTY']
                 hold_price = row[1]['H_PRICE']
                 if hold_qty>needed_qty:
-                    holdinghistory = pd.DataFrame({'HH_H_T_ID','HH_T_ID','HH_BEFORE_QTY','HH_AFTER_QTY'})
-    
-    
-    
+                    holdinghistory = pd.DataFrame({'HH_H_T_ID':[hold_id],
+                    'HH_T_ID':[trade_id],'HH_BEFORE_QTY':[hold_qty],
+                    'HH_AFTER_QTY':[hold_qty - needed_qty]})
+                    dg.HoldingHistory = dg.HoldingHistory(holdinghistory)
+                    dg.Holding.loc[dg.Holding['H_T_ID']==hold_id,'H_QTY'] = hold_qty - needed_qty
+                    buy_value += needed_qty * hold_price
+                    sell_value += needed_qty * profile['T_QTY'][0]
+                    needed_qty = 0
+                else:
+                    holdinghistory = pd.DataFrame({'HH_H_T_ID':[hold_id],
+                    'HH_T_ID':[trade_id],'HH_BEFORE_QTY':[hold_qty],
+                    'HH_AFTER_QTY':[0]})
+                    dg.HoldingHistory = dg.HoldingHistory(holdinghistory)
+                    dg.Holding.drop(row[0],inplace = True)
+                    buy_value += hold_qty * hold_price
+                    sell_value += hold_qty * profile['T_QTY'][0]
+                    needed_qty = needed_qty - hold_qty
+                if needed_qty == 0:
+                    break
+            
+            if needed_qty>0:
+            
 ###############################TRADE STATUS TRANSACTION########################
 def tradestatus(acct_id = ''):
     profile = {}
