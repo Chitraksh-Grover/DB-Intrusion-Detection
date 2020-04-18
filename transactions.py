@@ -292,8 +292,7 @@ def marketfeed():
     createProfile(profile, " marketfeed")
     return len(security)
     
- 
-############################MARKET WATCH TRANSACTION###########################
+ ############################MARKET WATCH TRANSACTION###########################
 def marketwatch(acct_id=0,cust_id=0,industry_name='',ending_co_id=0,starting_co_id=0,start_date=''):
     profile = {}
     if acct_id==0 and cust_id==0 and industry_name=='':
@@ -732,6 +731,7 @@ def tradelookup(acct_id=0,end_trade_dts='',frame_to_execute='',max_acct_id=0,max
 
 ###############################TRADE ORDER TRANSACTION#########################
 def tradeorder(acct_id = '',exec_f_name='',exec_l_name='',exec_tax_id='',is_lifo='',co_name ='',issue='',symbol='',trade_type_id='', trade_qty='',type_is_margin='',roll_it_back='',requested_price=''):
+
     profile = {}
     if acct_id == '':
          group = np.random.randint(2)
@@ -1072,6 +1072,107 @@ def tradeorder(acct_id = '',exec_f_name='',exec_l_name='',exec_tax_id='',is_lifo
     createProfile(profile, " tradeorder " + exec_f_name + ' ' + exec_l_name)
     return acct_id,exec_f_name,exec_l_name,exec_tax_id,is_lifo,co_name,issue,symbol,trade_type_id,trade_qty,type_is_margin,roll_it_back,requested_price,sell_value,buy_value,tax_amount,status_id,trade_id,acct_assets
     
+###############################TRADE RESULT TRANSACTION########################
+def traderesult(trade_id=''):
+    profile = {}
+    access_sequence = []
+    if trade_id == '':
+        trade = list(dg.Trade['T_ID'].values)
+        trade_id = trade[np.random.randint(len(trade))]
+    trade = dg.Trade.loc[dg.Trade['T_ID']==trade_id,['T_CA_ID','T_TT_ID',
+    'T_S_SYMB','T_QTY','T_CHRG','T_LIFO','T_IS_CASH']]
+    access_sequence.append('T_ID')
+    access_sequence.extend(list(trade.columns))
+    profile['T_ID'] = [trade_id]
+    profile['T_CA_ID']=list(trade['T_CA_ID'].values)
+    profile['T_TT_ID']=list(trade['T_TT_ID'].values)
+    profile['T_S_SYMB']=list(trade['T_S_SYMB'].values)
+    profile['T_QTY']=list(trade['T_QTY'].values)
+    profile['T_CHRG']=list(trade['T_CHRG'].values)
+    profile['T_LIFO']=list(trade['T_LIFO'].values)
+    profile['T_IS_CASH']=list(trade['T_IS_CASH'].values)
+    type_id = trade['T_TT_ID'].values[0]
+    symbol = trade['T_S_SYMB'].values[0]
+    acct_id = trade['T_CA_ID'].values[0]
+    tradetype = dg.TradeType.loc[dg.TradeType['TT_ID']==type_id,['TT_NAME','TT_IS_SELL',
+    'TT_IS_MRKT']]
+    access_sequence.append('TT_ID')
+    access_sequence.extend(list(tradetype.columns))
+    profile['TT_ID'] = [type_id]
+    profile['TT_NAME'] = list(tradetype['TT_NAME'].values)
+    profile['TT_IS_SELL'] = list(tradetype['TT_IS_SELL'].values)
+    profile['TT_IS_MRKT'] = list(tradetype['TT_IS_MRKT'].values)
+    hs_qty = dg.HoldingSummary.loc[(dg.HoldingSummary['HS_CA_ID']==acct_id) &
+    (dg.HoldingSummary['HS_S_SYMB']==symbol),'HS_QTY']
+    if hs_qty.shape[0] == 0:
+        hs_qty = 0
+    else:
+        hs_qty = hs_qty.values[0]
+    profile['HS_CA_ID'] = [acct_id]
+    profile['HS_S_SYMB'] = [symbol]
+    profile['HS_QTY'] = [hs_qty]
+    access_sequence.append('HS_CA_ID')
+    access_sequence.append('HS_S_SYMB')
+    access_sequence.append('HS_QTY')
+    
+    buy_value = 0.0
+    sell_value = 0.0
+    needed_qty = profile['T_QTY'][0]
+    customeraccount = dg.CustomerAccount.loc[dg.CustomerAccount['CA_ID']==acct_id,
+    ['CA_B_ID','CA_C_ID','CA_TAX_ST']]
+    access_sequence.append('CA_ID')
+    access_sequence.extend(list(customeraccount.columns))
+    profile['CA_ID'] = [acct_id]
+    profile['CA_B_ID'] = list(customeraccount['CA_B_ID'].values)
+    profile['CA_C_ID'] = list(customeraccount['CA_C_ID'].values)
+    profile['CA_TAX_ST'] = list(customeraccount['CA_TAX_ST'].values)
+    type_is_sell = profile['TT_IS_SELL'][0]
+    type_is_mrkt = profile['TT_IS_MRKT'][0]
+    if type_is_sell:
+        if hs_qty == 0:
+            holding_row = pd.DataFrame({'HS_CA_ID':acct_id,'HS_S_SYMB':symbol,'HS_QTY':-needed_qty})
+            dg.HoldingSummary = dg.HoldingSummary.append(holding_row)
+            profile['HS_CA_ID'].append(acct_id)
+            profile['HS_S_SYMB'].append(symbol)
+            profile['HS_QTY'].append(hs_qty)
+            access_sequence.append('HS_CA_ID')
+            access_sequence.append('HS_S_SYMB')
+            access_sequence.append('HS_QTY')
+        elif hs_qty != needed_qty:
+            dg.HoldingSummary.loc[(dg.HoldingSummary['HS_CA_ID'] == acct_id) & 
+            (dg.HoldingSummary['HS_S_SYMB'] = symbol),'HS_QTY'] = hs_qty - needed_qty
+            profile['HS_CA_ID'].append(acct_id)
+            profile['HS_S_SYMB'].append(symbol)
+            profile['HS_QTY'].append(hs_qty - needed_qty)
+            access_sequence.append('HS_CA_ID')
+            access_sequence.append('HS_S_SYMB')
+            access_sequence.append('HS_QTY')
+        is_lifo = profile['T_LIFO'][0]
+        if hs_qty<0 :
+            if is_lifo:
+                holding = dg.Holding.loc[(dg.Holding['H_CA_ID']==acct_id) &
+                (dg.Holding['H_S_SYMB']==symbol),['H_T_ID','H_QTY','H_PRICE']].iloc[::-1]
+            else:
+                 holding = dg.Holding.loc[(dg.Holding['H_CA_ID']==acct_id) &
+                 (dg.Holding['H_S_SYMB']==symbol),['H_T_ID','H_QTY','H_PRICE']]
+            profile['H_CA_ID'] = [acct_id]
+            profile['H_S_SYMB'] = [symbol]
+            profile['H_T_ID'] = list(holding['H_T_ID'].values)
+            profile['HS_QTY'] = list(holding['H_QTY'].values)
+            profile['HS_PRICE'] = list(holding['H_PRICE'].values)
+            access_sequence.append('H_CA_ID')
+            access_sequence.append('H_S_SYMB')
+            access_sequence.extend(holding.columns)
+            
+            for row in holding.iterrows():
+                hold_id = row[1]['H_T_ID']
+                hold_qty = row[1]['H_QTY']
+                hold_price = row[1]['H_PRICE']
+                if hold_qty>needed_qty:
+                    holdinghistory = pd.DataFrame({'HH_H_T_ID','HH_T_ID','HH_BEFORE_QTY','HH_AFTER_QTY'})
+    
+    
+    
 ###############################TRADE STATUS TRANSACTION########################
 def tradestatus(acct_id = ''):
     profile = {}
@@ -1134,4 +1235,3 @@ def tradestatus(acct_id = ''):
     
     createProfile(profile," tradestatus " + str(acct_id))
     return acct_id,trade,customer,broker
-
