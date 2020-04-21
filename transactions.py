@@ -8,10 +8,42 @@ import random
 import datetime
 simulation_start_date = datetime.datetime.now()
 
+#############################Market Exchange Functions#########################
+def nowTime():
+    base_time = max(list(dg.TradeHistory['TH_DTS']))
+    base_time = datetime.datetime.strptime(base_time,"%Y-%m-%d %H:%M:%S.%f")
+    current_time = datetime.datetime.now()
+    current_time = current_time - simulation_start_date + base_time
+    return current_time
+
+def marketPrice(symbol,trade_start):
+     msPerPeriod = 900000000
+     securityIndex = dg.Security.loc[dg.Security['S_SYMB'] == symbol].index.values[0]
+     securityFactor =securityIndex*556237 + 253791
+     trading_time = dg.LastTrade.loc[dg.LastTrade['LT_S_SYMB']==symbol,'LT_DTS'].values[0] 
+     trading_time = datetime.datetime.strptime(trading_time,"%Y-%m-%d %H:%M:%S.%f")
+     current_time = nowTime()
+     timesofar = current_time - trading_time
+     timesofar = timesofar.seconds * 1000000 + timesofar.microseconds
+     initialtime = (timesofar + securityFactor) % msPerPeriod
+     initialtime = initialtime / 1000000
+     ftime = current_time - trade_start
+     ftime = ftime.seconds
+     fperiodtime = (ftime + initialtime)/900
+     ftimeinperiod = (fperiodtime - int(fperiodtime))*900
+     if ftimeinperiod < (900/2):
+         fPricePosition = ftimeinperiod / (900 / 2)
+     else:
+        fPricePosition = (900 - ftimeinperiod) / (900/ 2)
+     price = 20 + 10*fPricePosition
+     return price
+    
+
 ##########################profile creation#####################################
-def createProfile(profile,trans):
+def createProfile(profile,trans,access_sequence =''):
     URV = ['o' for i in range(dg.URV_size)]
-    access_sequence = list(profile.keys())
+    if access_sequence == '':
+        access_sequence = list(profile.keys())
     for feature in access_sequence:
         if dg.URV_feature_type[feature] == 'C':
             URV[dg.URV_feature_index[feature]] = len(set(profile[feature]))
@@ -211,18 +243,14 @@ def customerposition(cust_id='', get_history='', tax_id='',account_id_idx=''):
 def marketfeed():
     profile = {}
     trade_start = min(list(dg.TradeHistory['TH_DTS']))
-    base_time = max(list(dg.TradeHistory['TH_DTS']))
-    base_time = datetime.datetime.strptime(base_time,"%Y-%m-%d %H:%M:%S.%f")
     trade_start = datetime.datetime.strptime(trade_start,"%Y-%m-%d %H:%M:%S.%f")
-    current_time = datetime.datetime.now()
-    current_time = current_time - simulation_start_date + base_time
+    current_time = nowTime()
     current_time_string = datetime.datetime.strftime(current_time,"%Y-%m-%d %H:%M:%S.%f")
     traderequest = dg.TradeRequest[['TR_S_SYMB','TR_QTY']]
     security = list(traderequest['TR_S_SYMB'])
     trade_qty = list(traderequest['TR_QTY'])
     '''security = random.sample(list(dg.Security['S_SYMB']),20)
     trade_qty = [np.random.randint(1,6) for i in range(20)]'''
-    msPerPeriod = 900000000
     price_quote = []
     cntr = 0
     profile['LT_S_SYMB'] = []
@@ -241,23 +269,7 @@ def marketfeed():
     profile["TH_DTS"] = []
     profile["TH_ST_ID"] = []
     for symbol in security:
-        securityIndex = dg.Security.loc[dg.Security['S_SYMB'] == symbol].index.values[0]
-        securityFactor =securityIndex*556237 + 253791
-        trading_time = dg.LastTrade.loc[dg.LastTrade['LT_S_SYMB']==symbol,'LT_DTS'].values[0] 
-        trading_time = datetime.datetime.strptime(trading_time,"%Y-%m-%d %H:%M:%S.%f")
-        timesofar = current_time - trading_time
-        timesofar = timesofar.seconds * 1000000 + timesofar.microseconds
-        initialtime = (timesofar + securityFactor) % msPerPeriod
-        initialtime = initialtime / 1000000
-        ftime = current_time - trade_start
-        ftime = ftime.seconds
-        fperiodtime = (ftime + initialtime)/900
-        ftimeinperiod = (fperiodtime - int(fperiodtime))*900
-        if ftimeinperiod < (900/2):
-            fPricePosition = ftimeinperiod / (900 / 2)
-        else:
-            fPricePosition = (900 - ftimeinperiod) / (900/ 2)
-        price = 20 + 10*fPricePosition
+        price = marketPrice(symbol, trade_start)
         price_quote.append(price)
         index = dg.LastTrade['LT_S_SYMB']==symbol
         dg.LastTrade.loc[index,'LT_PRICE'] = price
@@ -1124,10 +1136,16 @@ def traderesult(trade_id=''):
     access_sequence.extend(list(customeraccount.columns))
     profile['CA_ID'] = [acct_id]
     profile['CA_B_ID'] = list(customeraccount['CA_B_ID'].values)
+    broker_id = profile['CA_B_ID'][0]
     profile['CA_C_ID'] = list(customeraccount['CA_C_ID'].values)
+    cust_id = profile['CA_C_ID'][0]
     profile['CA_TAX_ST'] = list(customeraccount['CA_TAX_ST'].values)
     type_is_sell = profile['TT_IS_SELL'][0]
-    type_is_mrkt = profile['TT_IS_MRKT'][0]
+    trade_start = min(list(dg.TradeHistory['TH_DTS']))
+    trade_start = datetime.datetime.strptime(trade_start,"%Y-%m-%d %H:%M:%S.%f")
+    current_time = nowTime()
+    trade_dts = datetime.datetime.strftime(current_time,"%Y-%m-%d %H:%M:%S.%f")
+    trade_price = marketPrice(symbol, trade_start)
     if type_is_sell:
         if hs_qty == 0:
             holding_row = pd.DataFrame({'HS_CA_ID':[acct_id],'HS_S_SYMB':[symbol],
@@ -1150,6 +1168,16 @@ def traderesult(trade_id=''):
             access_sequence.append('HS_QTY')
         is_lifo = profile['T_LIFO'][0]
         
+        profile['HH_H_T_ID'] = []
+        profile['HH_T_ID'] = []
+        profile['HH_BEFORE_QTY'] = []
+        profile['HH_AFTER_QTY'] = []
+        profile['H_CA_ID'] = []
+        profile['H_S_SYMB'] = []
+        profile['H_T_ID'] = []
+        profile['H_QTY'] = []
+        profile['H_PRICE'] = []
+        profile['H_DTS'] = []
         if hs_qty>0 :
             if is_lifo:
                 holding = dg.Holding.loc[(dg.Holding['H_CA_ID']==acct_id) &
@@ -1160,11 +1188,11 @@ def traderesult(trade_id=''):
             profile['H_CA_ID'] = [acct_id]
             profile['H_S_SYMB'] = [symbol]
             profile['H_T_ID'] = list(holding['H_T_ID'].values)
-            profile['HS_QTY'] = list(holding['H_QTY'].values)
-            profile['HS_PRICE'] = list(holding['H_PRICE'].values)
+            profile['H_QTY'] = list(holding['H_QTY'].values)
+            profile['H_PRICE'] = list(holding['H_PRICE'].values)
             access_sequence.append('H_CA_ID')
             access_sequence.append('H_S_SYMB')
-            access_sequence.extend(holding.columns)
+            access_sequence.extend(list(holding.columns))
             
             for row in holding.iterrows():
                 hold_id = row[1]['H_T_ID']
@@ -1174,8 +1202,15 @@ def traderesult(trade_id=''):
                     holdinghistory = pd.DataFrame({'HH_H_T_ID':[hold_id],
                     'HH_T_ID':[trade_id],'HH_BEFORE_QTY':[hold_qty],
                     'HH_AFTER_QTY':[hold_qty - needed_qty]})
-                    dg.HoldingHistory = dg.HoldingHistory(holdinghistory)
+                    dg.HoldingHistory = dg.HoldingHistory.append(holdinghistory)
                     dg.Holding.loc[dg.Holding['H_T_ID']==hold_id,'H_QTY'] = hold_qty - needed_qty
+                    profile['HH_H_T_ID'].extend(list(holdinghistory['HH_H_T_ID'].values))
+                    profile['HH_T_ID'].extend(list(holdinghistory['HH_T_ID'].values))
+                    profile['HH_BEFORE_QTY'].extend(list(holdinghistory['HH_BEFORE_QTY'].values))
+                    profile['HH_AFTER_QTY'].extend(list(holdinghistory['HH_AFTER_QTY'].values))
+                    profile['H_QTY'].append(hold_qty - needed_qty)
+                    access_sequence.extend(list(holdinghistory.columns))
+                    access_sequence.append('H_QTY')
                     buy_value += needed_qty * hold_price
                     sell_value += needed_qty * profile['T_QTY'][0]
                     needed_qty = 0
@@ -1183,19 +1218,264 @@ def traderesult(trade_id=''):
                     holdinghistory = pd.DataFrame({'HH_H_T_ID':[hold_id],
                     'HH_T_ID':[trade_id],'HH_BEFORE_QTY':[hold_qty],
                     'HH_AFTER_QTY':[0]})
-                    dg.HoldingHistory = dg.HoldingHistory(holdinghistory)
+                    dg.HoldingHistory = dg.HoldingHistory.append(holdinghistory)
                     dg.Holding.drop(row[0],inplace = True)
+                    profile['HH_H_T_ID'].extend(list(holdinghistory['HH_H_T_ID'].values))
+                    profile['HH_T_ID'].extend(list(holdinghistory['HH_T_ID'].values))
+                    profile['HH_BEFORE_QTY'].extend(list(holdinghistory['HH_BEFORE_QTY'].values))
+                    profile['HH_AFTER_QTY'].extend(list(holdinghistory['HH_AFTER_QTY'].values))
+                    access_sequence.extend(list(holdinghistory.columns))
                     buy_value += hold_qty * hold_price
                     sell_value += hold_qty * profile['T_QTY'][0]
                     needed_qty = needed_qty - hold_qty
                 if needed_qty == 0:
                     break
             
-            if needed_qty>0:
+        if needed_qty>0:
+            holdinghistory = pd.DataFrame({'HH_H_T_ID':[trade_id],
+            'HH_T_ID':[trade_id],'HH_BEFORE_QTY':[0],'HH_AFTER_QTY':[-1*needed_qty]})
+            dg.HoldingHistory = dg.HoldingHistory.append(holdinghistory)
+            profile['HH_H_T_ID'].extend(list(holdinghistory['HH_H_T_ID'].values))
+            profile['HH_T_ID'].extend(list(holdinghistory['HH_T_ID'].values))
+            profile['HH_BEFORE_QTY'].extend(list(holdinghistory['HH_BEFORE_QTY'].values))
+            profile['HH_AFTER_QTY'].extend(list(holdinghistory['HH_AFTER_QTY'].values))
+            access_sequence.extend(list(holdinghistory.columns))
+            holding = pd.DataFrame({'H_T_ID':[trade_id],'H_CA_ID':[acct_id],
+            'H_S_SYMB':[symbol],'H_DTS':[trade_dts],'H_PRICE':[trade_price],
+            'H_QTY':[-1*needed_qty]})
+            dg.Holding = dg.Holding.append(holding)
+            profile['H_T_ID'].extend(list(holdinghistory['H_T_ID'].values))
+            profile['H_CA_ID'].extend(list(holdinghistory['H_CA_ID'].values))
+            profile['H_S_SYMB'].extend(list(holdinghistory['H_S_SYMB'].values))
+            profile['H_DTS'].extend(list(holding['H_DTS'].values))
+            profile['H_PRICE'].extend(list(holding['H_PRICE'].values))
+            profile['H_QTY'].extend(list(holding['H_QTY'].values))
+            access_sequence.extend(list(holding.columns))
+        else:
+            if hs_qty == profile['T_QTY'][0]:
+                index = dg.HoldingSummary.loc[(dg.HoldingSummary['HS_CA_ID'] == acct_id)
+                &(dg.HoldingSummary['HS_S_SYMB'] == symbol)].index[0]
+                dg.HoldingSummary.drop(index,inplace = True)
+                profile['HS_CA_ID'].append(acct_id)
+                profile['HS_S_SYMB'].append(symbol)
+                access_sequence.append(acct_id)
+                access_sequence.append(symbol)
+    
+    else:
+        # buy
+        if hs_qty == 0:
+            holding_row = pd.DataFrame({'HS_CA_ID':[acct_id],'HS_S_SYMB':[symbol],
+            'HS_QTY':[-needed_qty]})
+            dg.HoldingSummary = dg.HoldingSummary.append(holding_row)
+            profile['HS_CA_ID'].append(acct_id)
+            profile['HS_S_SYMB'].append(symbol)
+            profile['HS_QTY'].append(hs_qty)
+            access_sequence.append('HS_CA_ID')
+            access_sequence.append('HS_S_SYMB')
+            access_sequence.append('HS_QTY')
+        elif -1*hs_qty != needed_qty:
+            dg.HoldingSummary.loc[(dg.HoldingSummary['HS_CA_ID'] == acct_id) & 
+            (dg.HoldingSummary['HS_S_SYMB'] == symbol),'HS_QTY'] = hs_qty + profile['T_QTY'][0]
+            profile['HS_CA_ID'].append(acct_id)
+            profile['HS_S_SYMB'].append(symbol)
+            profile['HS_QTY'].append(hs_qty - needed_qty)
+            access_sequence.append('HS_CA_ID')
+            access_sequence.append('HS_S_SYMB')
+            access_sequence.append('HS_QTY')
+        
+        is_lifo = profile['T_LIFO'][0]
+        
+        profile['HH_H_T_ID'] = []
+        profile['HH_T_ID'] = []
+        profile['HH_BEFORE_QTY'] = []
+        profile['HH_AFTER_QTY'] = []
+        profile['H_CA_ID'] = []
+        profile['H_S_SYMB'] = []
+        profile['H_T_ID'] = []
+        profile['H_QTY'] = []
+        profile['H_PRICE'] = []
+        profile['H_DTS'] = []
+        
+        if hs_qty<0 :
+            if is_lifo:
+                holding = dg.Holding.loc[(dg.Holding['H_CA_ID']==acct_id) &
+                (dg.Holding['H_S_SYMB']==symbol),['H_T_ID','H_QTY','H_PRICE']].iloc[::-1]
+            else:
+                 holding = dg.Holding.loc[(dg.Holding['H_CA_ID']==acct_id) &
+                 (dg.Holding['H_S_SYMB']==symbol),['H_T_ID','H_QTY','H_PRICE']]
+            profile['H_CA_ID'] = [acct_id]
+            profile['H_S_SYMB'] = [symbol]
+            profile['H_T_ID'] = list(holding['H_T_ID'].values)
+            profile['H_QTY'] = list(holding['H_QTY'].values)
+            profile['H_PRICE'] = list(holding['H_PRICE'].values)
+            access_sequence.append('H_CA_ID')
+            access_sequence.append('H_S_SYMB')
+            access_sequence.extend(list(holding.columns))
+            
+            for row in holding.iterrows():
+                hold_id = row[1]['H_T_ID']
+                hold_qty = row[1]['H_QTY']
+                hold_price = row[1]['H_PRICE']
+                if hold_qty + needed_qty < 0:
+                    holdinghistory = pd.DataFrame({'HH_H_T_ID':[hold_id],
+                    'HH_T_ID':[trade_id],'HH_BEFORE_QTY':[hold_qty],
+                    'HH_AFTER_QTY':[hold_qty + needed_qty]})
+                    dg.HoldingHistory = dg.HoldingHistory.append(holdinghistory)
+                    dg.Holding.loc[dg.Holding['H_T_ID']==hold_id,'H_QTY'] = hold_qty + needed_qty
+                    profile['HH_H_T_ID'].extend(list(holdinghistory['HH_H_T_ID'].values))
+                    profile['HH_T_ID'].extend(list(holdinghistory['HH_T_ID'].values))
+                    profile['HH_BEFORE_QTY'].extend(list(holdinghistory['HH_BEFORE_QTY'].values))
+                    profile['HH_AFTER_QTY'].extend(list(holdinghistory['HH_AFTER_QTY'].values))
+                    profile['H_QTY'].append(hold_qty + needed_qty)
+                    access_sequence.extend(list(holdinghistory.columns))
+                    access_sequence.append('H_QTY')
+                    sell_value += needed_qty * hold_price
+                    buy_value += needed_qty * profile['T_QTY'][0]
+                    needed_qty = 0
+                else:
+                    holdinghistory = pd.DataFrame({'HH_H_T_ID':[hold_id],
+                    'HH_T_ID':[trade_id],'HH_BEFORE_QTY':[hold_qty],
+                    'HH_AFTER_QTY':[0]})
+                    dg.HoldingHistory = dg.HoldingHistory.append(holdinghistory)
+                    dg.Holding.drop(row[0],inplace = True)
+                    profile['HH_H_T_ID'].extend(list(holdinghistory['HH_H_T_ID'].values))
+                    profile['HH_T_ID'].extend(list(holdinghistory['HH_T_ID'].values))
+                    profile['HH_BEFORE_QTY'].extend(list(holdinghistory['HH_BEFORE_QTY'].values))
+                    profile['HH_AFTER_QTY'].extend(list(holdinghistory['HH_AFTER_QTY'].values))
+                    access_sequence.extend(list(holdinghistory.columns))
+                    hold_qty = -hold_qty
+                    sell_value += hold_qty * hold_price
+                    buy_value += hold_qty * profile['T_QTY'][0]
+                    needed_qty = needed_qty - hold_qty
+                if needed_qty == 0:
+                    break
+            
+        if needed_qty>0:
+            holdinghistory = pd.DataFrame({'HH_H_T_ID':[trade_id],
+            'HH_T_ID':[trade_id],'HH_BEFORE_QTY':[0],'HH_AFTER_QTY':[needed_qty]})
+            dg.HoldingHistory = dg.HoldingHistory.append(holdinghistory)
+            profile['HH_H_T_ID'].extend(list(holdinghistory['HH_H_T_ID'].values))
+            profile['HH_T_ID'].extend(list(holdinghistory['HH_T_ID'].values))
+            profile['HH_BEFORE_QTY'].extend(list(holdinghistory['HH_BEFORE_QTY'].values))
+            profile['HH_AFTER_QTY'].extend(list(holdinghistory['HH_AFTER_QTY'].values))
+            access_sequence.extend(list(holdinghistory.columns))
+            holding = pd.DataFrame({'H_T_ID':[trade_id],'H_CA_ID':[acct_id],
+            'H_S_SYMB':[symbol],'H_DTS':[trade_dts],'H_PRICE':[trade_price],
+            'H_QTY':[-1*needed_qty]})
+            dg.Holding = dg.Holding.append(holding)
+            profile['H_T_ID'].extend(list(holdinghistory['H_T_ID'].values))
+            profile['H_CA_ID'].extend(list(holdinghistory['H_CA_ID'].values))
+            profile['H_S_SYMB'].extend(list(holdinghistory['H_S_SYMB'].values))
+            profile['H_DTS'].extend(list(holding['H_DTS'].values))
+            profile['H_PRICE'].extend(list(holding['H_PRICE'].values))
+            profile['H_QTY'].extend(list(holding['H_QTY'].values))
+            access_sequence.extend(list(holding.columns))
+        else:
+            if -hs_qty == profile['T_QTY'][0]:
+                index = dg.HoldingSummary.loc[(dg.HoldingSummary['HS_CA_ID'] == acct_id)
+                &(dg.HoldingSummary['HS_S_SYMB'] == symbol)].index[0]
+                dg.HoldingSummary.drop(index,inplace = True)
+                profile['HS_CA_ID'].append(acct_id)
+                profile['HS_S_SYMB'].append(symbol)
+                access_sequence.append(acct_id)
+                access_sequence.append(symbol)
+        
+    tax_amount = 0.0
+    if ((profile['CA_TAX_ST'] == 1) or (profile['CA_TAX_ST'] == 2)) and (sell_value>buy_value):
+        customertax = list(dg.CustomerTaxrate.loc[dg.CustomerTaxrate['CX_C_ID']==cust_id,
+        'CX_TX_ID'].values)
+        profile['CX_C_ID'] = [cust_id for i in range(len(customertax))]
+        profile['CX_TX_ID'] = [customertax]
+        access_sequence.append('CX_C_ID')
+        access_sequence.append('CX_TX_ID')
+        tax = dg.Taxrate.loc[dg.Taxrate['TX_ID'].isin(customertax),
+        ['TX_ID','TX_RATE']]
+        profile['TX_ID'] = list(tax['TX_ID'].values)
+        profile['TX_RATE'] = list(tax['TX_RATE'].values)
+        access_sequence.extend(tax.columns)
+        tax_rates = sum(profile['TX_RATE'])
+        tax_amount = (sell_value - buy_value) * tax_rates
+        dg.Trade.loc[dg.Trade['T_ID'] == trade_id,'T_TAX'] = tax_amount
+        profile['T_ID'].append(trade_id)
+        profile['T_TAX'] = [tax_amount]
+        access_sequence.append('T_ID')
+        access_sequence.append('T_TAX')
+
+    security = dg.Security.loc[dg.Security['S_SYMB']==symbol,['S_EX_ID','S_NAME']]
+    profile['S_SYMB'] = [symbol]
+    profile['S_EX_ID'] = list(security['S_EX_ID'].values)
+    profile['S_NAME'] = list(security['S_NAME'].values)
+    access_sequence.append('S_SYMB')
+    access_sequence.extend(list(security.columns))
+    c_tier = dg.Customer.loc[dg.Customer['C_ID']==cust_id,'C_TIER'].values[0]
+    profile['C_ID'] = [cust_id]
+    profile['C_TIER'] = [c_tier]
+    access_sequence.append('C_ID')
+    access_sequence.append('C_TIER')
+    comm = dg.CommissionRate.loc[(dg.CommissionRate['CR_C_TIER'] == c_tier)
+    & (dg.CommissionRate['CR_TT_ID'] == type_id)
+    & (dg.CommissionRate['CR_EX_ID'] == profile['S_EX_ID'][0])
+    & (dg.CommissionRate['CR_FROM_QTY'] <= profile['T_QTY'][0])
+    & (dg.CommissionRate['CR_TO_QTY'] >= profile['T_QTY'][0]),['CR_FROM_QTY','CR_TO_QTY','CR_RATE']]
+    profile['CR_C_TIER'] = [c_tier]
+    profile['CR_EX_ID'] = profile['S_EX_ID']
+    profile['CR_FROM_QTY'] = [comm['CR_FROM_QTY'].values[0]]
+    profile['CR_TO_QTY'] = [comm['CR_TO_QTY'].values[0]]
+    profile['CR_RATE'] = [comm['CR_RATE'].values[0]]
+    comm_rate = profile['CR_RATE'][0]
+    access_sequence.append('CR_C_TIER')
+    access_sequence.append('CR_TT_ID')
+    access_sequence.append('CR_FROM_QTY')
+    access_sequence.append('CR_TO_QTY')
+    access_sequence.append('CR_RATE')
+    
+    comm_amount = (comm_rate / 100) * (profile['T_QTY'] * trade_price)
+    index = dg.Trade['T_ID'] == trade_id
+    dg.Trade.loc[index,'T_COMM'] = comm_amount
+    dg.Trade.loc[index,'T_DTS'] = trade_dts
+    dg.Trade.loc[index,'T_ST_ID'] = 'CMPT' 
+    dg.Trade.loc[index,'T_TRADE_PRICE'] = trade_price
+    profile['T_ID'].append(trade_id)
+    profile['T_COMM'] = comm_amount
+    profile['T_DTS'] = trade_dts
+    profile['T_ST_ID'] = 'CMPT'
+    profile['T_TRADE_PRICE'] = trade_price
+    access_sequence.append('T_ID')
+    access_sequence.append('T_COMM')
+    access_sequence.append('T_DTS')
+    access_sequence.append('T_ST_ID')
+    access_sequence.append('T_TRADE_PRICE')
+    trade = pd.DataFrame({'TH_T_ID': [trade_id],'TH_DTS': [trade_dts],
+    'TH_ST_ID': ['CMPT']})
+    profile['TH_T_ID'] =  [trade_id]
+    profile['TH_DTS'] = [trade_dts]
+    profile['TH_ST_ID'] = ['CMPT']
+    access_sequence.extend(list(trade.columns))
+    dg.TradeHistory = dg.TradeHistory.append(trade)
+    index = dg.Broker['B_ID'] == broker_id
+    dg.Broker.loc[index,'B_COMM_TOTAL'] += comm_amount
+    dg.Broker.loc[index,'B_NUM_TRADES'] += 1
+    profile['B_ID'] = [broker_id]
+    profile['B_COMM_TOTAL'] = dg.Broker.loc[index,'B_COMM_TOTAL']
+    profile['B_NUM_TRADES'] = dg.Broker.loc[index,'B_NUM_TRADES']
+    access_sequence('B_ID')
+    access_sequence('B_COMM_TOTAL')
+    access_sequence('B_NUM_TRADES')
+    due_date = current_time + datetime.timedelta(days = 2)
+    if type_is_sell :
+        se_amount = (profile['T_QTY'][0] * trade_price) – profile['T_CHRG'][0] – comm_amount
+    else :
+        se_amount = -((profile['T_QTY'][0] * trade_price) + profile['T_CHRG'][0] + comm_amount)
+        
+    if tax_status == 1 :
+        se_amount = se_amount – tax_amount
+
+    
             
 ###############################TRADE STATUS TRANSACTION########################
 def tradestatus(acct_id = ''):
     profile = {}
+    access_sequence = []
     if acct_id == '':
         group = np.random.randint(2)
         if group == 0:
@@ -1208,14 +1488,19 @@ def tradestatus(acct_id = ''):
         acct_id = accounts[np.random.randint(len(accounts))]
     trade = dg.Trade.loc[dg.Trade['T_CA_ID']==acct_id,['T_CA_ID','T_ID','T_DTS',
     'T_S_SYMB','T_QTY','T_EXEC_NAME','T_CHRG','T_ST_ID','T_TT_ID']][-50:]
+    access_sequence.extend(list(trade.columns))
     tradetype = dg.TradeType.loc[dg.TradeType['TT_ID'].isin(list(trade['T_TT_ID'].values)),
     ['TT_ID','TT_NAME']]
+    access_sequence.extend(list(tradetype.columns))
     statustype = dg.StatusType.loc[dg.StatusType['ST_ID'].isin(list(trade['T_ST_ID'].values)),
     ['ST_ID','ST_NAME']]
+    access_sequence.extend(list(statustype.columns))
     security = dg.Security.loc[dg.Security['S_SYMB'].isin(list(trade['T_S_SYMB'].values)),
     ['S_SYMB','S_NAME','S_EX_ID']]
+    access_sequence.extend(list(security.columns))
     exchange = dg.Exchange.loc[dg.Exchange['EX_ID'].isin(list(security['S_EX_ID'].values)),
     ['EX_ID','EX_NAME']]
+    access_sequence.extend(list(exchange.columns))
     security = security.set_index('S_EX_ID',drop=False).join(exchange.set_index('EX_ID',drop=False))
     trade = trade.set_index('T_TT_ID',drop=False).join(tradetype.set_index('TT_ID',drop=False))
     trade = trade.set_index('T_ST_ID',drop=False).join(statustype.set_index('ST_ID',drop=False))
@@ -1241,9 +1526,13 @@ def tradestatus(acct_id = ''):
     customeraccount = dg.CustomerAccount.loc[dg.CustomerAccount['CA_ID'] == acct_id,['CA_C_ID','CA_B_ID']]
     customer_id = customeraccount['CA_C_ID'].values[0]
     broker_id = customeraccount['CA_B_ID'].values[0]
+    access_sequence.append('CA_ID')
+    access_sequence.extend(list(customeraccount.columns))
     customer = dg.Customer.loc[dg.Customer['C_ID']==customer_id,['C_ID',
     'C_F_NAME','C_L_NAME']]
+    access_sequence.extend(list(customer.columns))
     broker = dg.Broker.loc[dg.Broker['B_ID']==broker_id,['B_ID','B_NAME']]
+    access_sequence.extend(list(broker.columns))
     profile['CA_ID'] = [acct_id]
     profile['CA_C_ID'] = [customer_id]
     profile['CA_B_ID'] = [broker_id]
