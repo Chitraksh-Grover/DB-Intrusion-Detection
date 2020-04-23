@@ -44,7 +44,7 @@ def createProfile(profile,trans,access_sequence =''):
     URV = ['o' for i in range(dg.URV_size)]
     if access_sequence == '':
         access_sequence = list(profile.keys())
-    for feature in access_sequence:
+    for feature in profile.keys():
         if dg.URV_feature_type[feature] == 'C':
             URV[dg.URV_feature_index[feature]] = len(set(profile[feature]))
             URV[dg.URV_feature_index[feature] + 1] = len(profile[feature])
@@ -1244,9 +1244,9 @@ def traderesult(trade_id=''):
             'H_S_SYMB':[symbol],'H_DTS':[trade_dts],'H_PRICE':[trade_price],
             'H_QTY':[-1*needed_qty]})
             dg.Holding = dg.Holding.append(holding)
-            profile['H_T_ID'].extend(list(holdinghistory['H_T_ID'].values))
-            profile['H_CA_ID'].extend(list(holdinghistory['H_CA_ID'].values))
-            profile['H_S_SYMB'].extend(list(holdinghistory['H_S_SYMB'].values))
+            profile['H_T_ID'].extend(list(holding['H_T_ID'].values))
+            profile['H_CA_ID'].extend(list(holding['H_CA_ID'].values))
+            profile['H_S_SYMB'].extend(list(holding['H_S_SYMB'].values))
             profile['H_DTS'].extend(list(holding['H_DTS'].values))
             profile['H_PRICE'].extend(list(holding['H_PRICE'].values))
             profile['H_QTY'].extend(list(holding['H_QTY'].values))
@@ -1363,9 +1363,9 @@ def traderesult(trade_id=''):
             'H_S_SYMB':[symbol],'H_DTS':[trade_dts],'H_PRICE':[trade_price],
             'H_QTY':[-1*needed_qty]})
             dg.Holding = dg.Holding.append(holding)
-            profile['H_T_ID'].extend(list(holdinghistory['H_T_ID'].values))
-            profile['H_CA_ID'].extend(list(holdinghistory['H_CA_ID'].values))
-            profile['H_S_SYMB'].extend(list(holdinghistory['H_S_SYMB'].values))
+            profile['H_T_ID'].extend(list(holding['H_T_ID'].values))
+            profile['H_CA_ID'].extend(list(holding['H_CA_ID'].values))
+            profile['H_S_SYMB'].extend(list(holding['H_S_SYMB'].values))
             profile['H_DTS'].extend(list(holding['H_DTS'].values))
             profile['H_PRICE'].extend(list(holding['H_PRICE'].values))
             profile['H_QTY'].extend(list(holding['H_QTY'].values))
@@ -1429,7 +1429,7 @@ def traderesult(trade_id=''):
     access_sequence.append('CR_TO_QTY')
     access_sequence.append('CR_RATE')
     
-    comm_amount = (comm_rate / 100) * (profile['T_QTY'] * trade_price)
+    comm_amount = (comm_rate / 100) * (profile['T_QTY'][0] * trade_price)
     index = dg.Trade['T_ID'] == trade_id
     dg.Trade.loc[index,'T_COMM'] = comm_amount
     dg.Trade.loc[index,'T_DTS'] = trade_dts
@@ -1458,20 +1458,59 @@ def traderesult(trade_id=''):
     profile['B_ID'] = [broker_id]
     profile['B_COMM_TOTAL'] = dg.Broker.loc[index,'B_COMM_TOTAL']
     profile['B_NUM_TRADES'] = dg.Broker.loc[index,'B_NUM_TRADES']
-    access_sequence('B_ID')
-    access_sequence('B_COMM_TOTAL')
-    access_sequence('B_NUM_TRADES')
+    access_sequence.append('B_ID')
+    access_sequence.append('B_COMM_TOTAL')
+    access_sequence.append('B_NUM_TRADES')
     due_date = current_time + datetime.timedelta(days = 2)
     if type_is_sell :
-        se_amount = (profile['T_QTY'][0] * trade_price) – profile['T_CHRG'][0] – comm_amount
+        se_amount = (profile['T_QTY'][0] * trade_price) - profile['T_CHRG'][0] - comm_amount
     else :
         se_amount = -((profile['T_QTY'][0] * trade_price) + profile['T_CHRG'][0] + comm_amount)
         
-    if tax_status == 1 :
-        se_amount = se_amount – tax_amount
-
+    if profile['CA_C_ID'][0] == 1 :
+        se_amount = se_amount - tax_amount
+        
+    if profile['T_IS_CASH'] == 1:
+        cash_type = "Cash Account"
+    else:
+        cash_type = "Margin"
     
-            
+    settlement = pd.DataFrame({'SE_T_ID': [trade_id],'SE_CASH_TYPE': [cash_type],
+    'SE_CASH_DUE_DATE': [due_date],'SE_AMT': [se_amount]})
+    profile['SE_T_ID'] = list(settlement['SE_T_ID'].values)
+    profile['SE_CASH_TYPE'] = list(settlement['SE_CASH_TYPE'].values)
+    profile['SE_CASH_DUE_DATE'] = list(settlement['SE_CASH_DUE_DATE'].values)
+    profile['SE_AMT'] = list(settlement['SE_AMT'].values)
+    access_sequence.extend(list(settlement.columns))
+    dg.Settlement = dg.Settlement.append(settlement)
+    
+    profile['CA_BAL'] = []
+    if profile['T_IS_CASH'] == 1:
+         dg.CustomerAccount.loc[dg.CustomerAccount['CA_ID']==acct_id,'CA_BAL'] += se_amount
+         profile['CA_ID'].append(acct_id)
+         profile['CA_BAL'] = [dg.CustomerAccount.loc[dg.CustomerAccount['CA_ID']==acct_id,'CA_BAL'].values]
+         access_sequence.append('CA_ID')
+         access_sequence.append('CA_BAL')
+         cashtransaction = pd.DataFrame({'CT_DTS': [trade_dts],'CT_T_ID': [trade_id],
+        'CT_AMT': [se_amount],
+        'CT_NAME': [profile['TT_NAME'][0] + " " + trade_qty + " shares of " + profile['S_NAME'][0]]
+         })
+         profile['CT_DTS'] = list(cashtransaction['CT_DTS'].values)
+         profile['CT_T_ID'] = list(cashtransaction['CT_T_ID'].values)
+         profile['CT_AMT'] = list(cashtransaction['CT_AMT'].values)
+         profile['CT_NAME'] = list(cashtransaction['CT_NAME'].values)
+         access_sequence.extend(list(cashtransaction.cloumns))
+         dg.CashTransactions = dg.CashTransactions.append(cashtransactions)
+    
+    acct_bal = dg.CustomerAccount.loc[dg.CustomerAccount['CA_ID']==acct_id,'CA_BAL'].values[0]
+    profile['CA_ID'].append(acct_id)
+    profile['CA_BAL'].append(acct_bal)
+    access_sequence.append('CA_ID')
+    access_sequence.append('CA_BAL')
+    
+    createProfile(profile," tradeResult " + str(trade_id),access_sequence)
+    return trade_id,acct_bal,trade_price,acct_id
+
 ###############################TRADE STATUS TRANSACTION########################
 def tradestatus(acct_id = ''):
     profile = {}
