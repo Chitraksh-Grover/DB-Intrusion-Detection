@@ -46,6 +46,7 @@ def createProfile(profile,trans,access_sequence =''):
         access_sequence = list(profile.keys())
     for feature in profile.keys():
         if dg.URV_feature_type[feature] == 'C':
+            print(feature)
             URV[dg.URV_feature_index[feature]] = len(set(profile[feature]))
             URV[dg.URV_feature_index[feature] + 1] = len(profile[feature])
         else:
@@ -1493,14 +1494,14 @@ def traderesult(trade_id=''):
          access_sequence.append('CA_BAL')
          cashtransaction = pd.DataFrame({'CT_DTS': [trade_dts],'CT_T_ID': [trade_id],
         'CT_AMT': [se_amount],
-        'CT_NAME': [profile['TT_NAME'][0] + " " + trade_qty + " shares of " + profile['S_NAME'][0]]
+        'CT_NAME': [profile['TT_NAME'][0] + " " + profile['T_OTY'][0] + " shares of " + profile['S_NAME'][0]]
          })
          profile['CT_DTS'] = list(cashtransaction['CT_DTS'].values)
          profile['CT_T_ID'] = list(cashtransaction['CT_T_ID'].values)
          profile['CT_AMT'] = list(cashtransaction['CT_AMT'].values)
          profile['CT_NAME'] = list(cashtransaction['CT_NAME'].values)
          access_sequence.extend(list(cashtransaction.cloumns))
-         dg.CashTransactions = dg.CashTransactions.append(cashtransactions)
+         dg.CashTransactions = dg.CashTransactions.append(cashtransaction)
     
     acct_bal = dg.CustomerAccount.loc[dg.CustomerAccount['CA_ID']==acct_id,'CA_BAL'].values[0]
     profile['CA_ID'].append(acct_id)
@@ -1583,3 +1584,284 @@ def tradestatus(acct_id = ''):
     
     createProfile(profile," tradestatus " + str(acct_id))
     return acct_id,trade,customer,broker
+
+##############################TRADE UPDATE TRANSACTION#########################
+def tradeupdate(acct_id='',end_trade_dts='',frame_to_execute='',max_acct_id='',max_trades=20,max_updates=20,start_trade_dts='',symbol='',trade_id=''):
+    profile = {}
+    access_sequence = []
+    if frame_to_execute == '':
+        prob = random.uniform(0,1);
+        if prob<0.33:
+            frame_to_execute = 1
+        elif prob<0.66:
+            frame_to_execute = 2
+        else:
+            frame_to_execute = 3
+    
+    if frame_to_execute == 1:
+        if trade_id == '':
+            trade = list(dg.Trade['T_ID'])
+            length = len(trade)
+            start = np.random.randint(length-max_trades)
+            trade_id = random.sample(trade[start:],max_trades)
+        updated = 0
+        profile['T_ID'] = []
+        profile['T_EXEC_NAME'] = []
+        profile['T_BID_PRICE'] = []
+        profile['T_IS_CASH'] = []
+        profile['T_TRADE_PRICE'] = []
+        profile['T_TT_ID'] = []
+        profile['TT_ID'] = []
+        profile['TT_IS_MRKT'] = []
+        profile['SE_T_ID'] = []
+        profile['SE_AMT'] = []
+        profile['SE_CASH_DUE_DATE'] = []
+        profile['SE_CASH_TYPE'] = []
+        profile['CT_T_ID'] = []
+        profile['CT_AMT'] = []
+        profile['CT_DTS'] = []
+        profile['CT_NAME'] = []
+        profile['TH_T_ID'] = []
+        profile['TH_DTS'] = []
+        profile['TH_ST_ID'] = []
+        for tid in trade_id:
+            if updated<max_updates:
+                ex_name = dg.Trade.loc[dg.Trade['T_ID']==tid,'T_EXEC_NAME'].values[0]
+                profile['T_ID'].append(tid)
+                profile['T_EXEC_NAME'].append(ex_name)
+                access_sequence.append('T_ID')
+                access_sequence.append('T_EXEC_NAME')
+                if ex_name.find("X"):
+                    ex_name.replace("X"," ")
+                else:
+                    ex_name.replace(" ","X")
+                dg.Trade.loc[dg.Trade['T_ID']==tid,'T_EXEC_NAME'] = ex_name
+                profile['T_ID'].append(tid)
+                profile['T_EXEC_NAME'].append(ex_name)
+                access_sequence.append('T_ID')
+                access_sequence.append('T_EXEC_NAME')
+                updated += 1
+            trade = dg.Trade.loc[dg.Trade['T_ID']==tid,['T_BID_PRICE','T_EXEC_NAME',
+            'T_IS_CASH','T_TT_ID','T_TRADE_PRICE']]
+            tradetype = dg.TradeType.loc[dg.TradeType['TT_ID'] == trade['T_TT_ID'].values[0],
+            ['TT_IS_MRKT']]
+            profile['T_ID'].append(tid)
+            profile['T_EXEC_NAME'].append(trade['T_EXEC_NAME'].values[0])
+            profile['T_BID_PRICE'].append(trade['T_BID_PRICE'].values[0])
+            profile['T_IS_CASH'].append(trade['T_IS_CASH'].values[0])
+            profile['T_TRADE_PRICE'].append(trade['T_TRADE_PRICE'].values[0])
+            profile['T_TT_ID'].append(trade['T_TT_ID'].values[0])
+            profile['TT_ID'].append(trade['T_TT_ID'].values[0])
+            profile['TT_IS_MRKT'].append(tradetype['TT_IS_MRKT'].values[0])
+            access_sequence.append('T_ID')
+            access_sequence.extend(trade.columns)
+            access_sequence.extend(['TT_ID','TT_IS_MRKT'])
+            settlement = dg.Settlement.loc[dg.Settlement['SE_T_ID']==tid,
+            ['SE_AMT','SE_CASH_DUE_DATE','SE_CASH_TYPE']]
+            profile['SE_T_ID'].append(tid)
+            profile['SE_AMT'].append(settlement['SE_AMT'].values[0])
+            profile['SE_CASH_DUE_DATE'].append(settlement['SE_CASH_DUE_DATE'].values[0])
+            profile['SE_CASH_TYPE'].append(settlement['SE_CASH_TYPE'].values[0])
+            access_sequence.append('SE_T_ID')
+            access_sequence.extend(settlement.columns)
+            if profile['T_IS_CASH'][-1]:
+                cashtransaction = dg.CashTransaction.loc[dg.CashTransaction['CT_T_ID'] == tid,
+                ['CT_AMT','CT_DTS','CT_NAME']]
+                profile['CT_T_ID'].append(tid)
+                profile['CT_AMT'].append(cashtransaction['CT_AMT'].values[0])
+                profile['CT_DTS'].append(cashtransaction['CT_DTS'].values[0])
+                profile['CT_NAME'].append(cashtransaction['CT_NAME'].values[0])
+                access_sequence.append('CT_T_ID')
+                access_sequence.append(cashtransaction.columns)
+            tradehistory = dg.TradeHistory.loc[dg.TradeHistory['TH_T_ID']==tid,
+            ['TH_DTS','TH_ST_ID']][:3]
+            profile['TH_T_ID'].append(tid)
+            profile['TH_DTS'].extend(list(tradehistory['TH_DTS'].values))
+            profile['TH_ST_ID'].extend(list(tradehistory['TH_ST_ID'].values))
+            access_sequence.append('TH_T_ID')
+            access_sequence.extend(tradehistory.columns)
+        createProfile(profile, ' tradeupdate1' ,access_sequence)
+        return trade_id,frame_to_execute,max_trades,max_updates,profile['T_BID_PRICE'],profile['CT_AMT'],profile['CT_DTS'],profile['CT_NAME'],profile['T_EXEC_NAME'],profile['T_IS_CASH'],profile['TT_IS_MRKT'],profile['SE_AMT'],profile['SE_CASH_DUE_DATE'],profile['SE_CASH_TYPE'],profile['TH_DTS'],profile['TH_ST_ID'],profile['T_TRADE_PRICE']
+        
+    if frame_to_execute == 2:
+        if acct_id == '':
+            group = np.random.randint(2)
+            if group == 0:
+                customers = list(dg.Customer['C_ID'])
+            else:
+                tier = np.random.randint(1,4)
+                customers = list(dg.Customer.loc[dg.Customer['C_TIER']==tier,'C_ID'])
+            cust_id = customers[np.random.randint(len(customers))]
+            accounts = list(dg.CustomerAccount.loc[dg.CustomerAccount['CA_C_ID']==cust_id,'CA_ID'])
+            acct_id = accounts[np.random.randint(len(accounts))]
+        if start_trade_dts=='':
+            dts = random.sample(list(dg.Trade['T_DTS']),2)
+            start_trade_dts = min(dts)
+            end_trade_dts = max(dts)
+        trade = dg.Trade.loc[(dg.Trade['T_CA_ID']==acct_id)
+        &(dg.Trade['T_DTS']>=start_trade_dts)
+        &(dg.Trade['T_DTS']<=end_trade_dts),['T_DTS','T_BID_PRICE','T_EXEC_NAME',
+        'T_IS_CASH','T_ID','T_TRADE_PRICE']][:max_trades]
+        profile['T_CA_ID'] = [acct_id]
+        profile['T_DTS'] = list(trade['T_DTS'].values)
+        profile['T_BID_PRICE'] = list(trade['T_BID_PRICE'].values)
+        profile['T_EXEC_NAME'] = list(trade['T_EXEC_NAME'].values)
+        profile['T_IS_CASH'] = list(trade['T_IS_CASH'].values)
+        profile['T_ID'] = list(trade['T_ID'].values)
+        profile['T_TRADE_PRICE'] = list(trade['T_TRADE_PRICE'].values)
+        access_sequence.append('T_CA_ID')
+        access_sequence.extend(trade.columns)
+        updated = 0
+        profile['SE_T_ID'] = []
+        profile['SE_AMT'] = []
+        profile['SE_CASH_DUE_DATE'] = []
+        profile['SE_CASH_TYPE'] = []
+        profile['CT_T_ID'] = []
+        profile['CT_AMT'] = []
+        profile['CT_DTS'] = []
+        profile['CT_NAME'] = []
+        profile['TH_T_ID'] = []
+        profile['TH_DTS'] = []
+        profile['TH_ST_ID'] = []
+        cnt = 0
+        for tid in profile['T_ID']:
+            if updated<max_updates:
+                cash_type = dg.Settlement.loc[dg.Settlement['SE_T_ID']==tid,'SE_CASH_TYPE'].values[0]
+                profile['SE_T_ID'] = [tid]
+                profile['SE_CASH_TYPE'] = [cash_type]
+                access_sequence.extend(['SE_T_ID','SE_CASH_TYPE'])
+                if profile['T_IS_CASH'][cnt]:
+                    if cash_type == "Cash Account":
+                        cash_type = "Cash"
+                    else:
+                        cash_type = "Cash Account"
+                else:
+                    if cash_type == "Margin Account":
+                        cash_type = "Margin"
+                    else:
+                        cash_type = "Margin Account"
+                dg.Settlement.loc[dg.Settlement['SE_T_ID']==tid,'SE_CASH_TYPE'].values[0] = cash_type
+                profile['SE_T_ID'] = [tid]
+                profile['SE_CASH_TYPE'] = [cash_type]
+                access_sequence.extend(['SE_T_ID','SE_CASH_TYPE'])
+                updated += 1
+            settlement = dg.Settlement.loc[dg.Settlement['SE_T_ID']==tid,
+            ['SE_AMT','SE_CASH_DUE_DATE','SE_CASH_TYPE']]
+            profile['SE_T_ID'].append(tid)
+            profile['SE_AMT'].append(settlement['SE_AMT'].values[0])
+            profile['SE_CASH_DUE_DATE'].append(settlement['SE_CASH_DUE_DATE'].values[0])
+            profile['SE_CASH_TYPE'].append(settlement['SE_CASH_TYPE'].values[0])
+            access_sequence.append('SE_T_ID')
+            access_sequence.extend(settlement.columns)
+            if profile['T_IS_CASH'][cnt]:
+                cashtransaction = dg.CashTransaction.loc[dg.CashTransaction['CT_T_ID'] == tid,
+                ['CT_AMT','CT_DTS','CT_NAME']]
+                profile['CT_T_ID'].append(tid)
+                profile['CT_AMT'].append(cashtransaction['CT_AMT'].values[0])
+                profile['CT_DTS'].append(cashtransaction['CT_DTS'].values[0])
+                profile['CT_NAME'].append(cashtransaction['CT_NAME'].values[0])
+                access_sequence.append('CT_T_ID')
+                access_sequence.append(cashtransaction.columns)
+            tradehistory = dg.TradeHistory.loc[dg.TradeHistory['TH_T_ID']==tid,
+            ['TH_DTS','TH_ST_ID']][:3]
+            profile['TH_T_ID'].append(tid)
+            profile['TH_DTS'].extend(tradehistory['TH_DTS'].values)
+            profile['TH_ST_ID'].extend(tradehistory['TH_ST_ID'].values)
+            access_sequence.append('TH_T_ID')
+            access_sequence.extend(tradehistory.columns)
+            cnt += 1
+        createProfile(profile, ' tradeupdate2 ' + str(acct_id) ,access_sequence)
+        return acct_id,end_trade_dts,start_trade_dts,frame_to_execute,max_trades,max_updates,profile['T_BID_PRICE'],profile['CT_AMT'],profile['CT_DTS'],profile['CT_NAME'],profile['T_EXEC_NAME'],profile['T_IS_CASH'],profile['SE_AMT'],profile['SE_CASH_DUE_DATE'],profile['SE_CASH_TYPE'],profile['TH_DTS'],profile['TH_ST_ID'],profile['T_TRADE_PRICE']
+    
+    if frame_to_execute == 3:
+        if start_trade_dts=='':
+            dts = random.sample(list(dg.Trade['T_DTS']),2)
+            start_trade_dts = min(dts)
+            end_trade_dts = max(dts)
+        if symbol == '':
+            symbol = random.sample(list(dg.Security['S_SYMB']),1)
+            symbol = symbol[0]
+        trade = dg.Trade.loc[(dg.Trade['T_S_SYMB'] == symbol)
+        &(dg.Trade['T_DTS']>=start_trade_dts)
+        &(dg.Trade['T_DTS']<=end_trade_dts),['T_DTS','T_CA_ID','T_EXEC_NAME',
+        'T_IS_CASH','T_TRADE_PRICE','T_QTY','T_ID','T_TT_ID']]
+        profile['T_S_SYMB'] = [symbol for i in range(trade.shape[0])]
+        profile['T_DTS'] = list(trade['T_DTS'].values)
+        profile['T_CA_ID'] = list(trade['T_CA_ID'].values)
+        profile['T_EXEC_NAME'] = list(trade['T_EXEC_NAME'].values)
+        profile['T_IS_CASH'] = list(trade['T_IS_CASH'].values)
+        profile['T_TRADE_PRICE'] = list(trade['T_TRADE_PRICE'].values)
+        profile['T_QTY'] = list(trade['T_QTY'].values)
+        profile['T_ID'] = list(trade['T_ID'].values)
+        profile['T_TT_ID'] = list(trade['T_TT_ID'].values)
+        profile['TT_ID'] = list(trade['T_TT_ID'].values)
+        profile['TT_NAME'] = []
+        for tyid in profile['TT_ID']:
+            profile['TT_NAME'].append(dg.TradeType.loc[dg.TradeType['TT_ID']==tyid,
+                                'TT_NAME'].values[0])
+        s_name = dg.Security.loc[dg.Security['S_SYMB']==symbol,'S_NAME'].values[0]
+        profile['S_SYMB'] = [symbol for i in range(trade.shape[0])]
+        profile['S_NAME'] = [s_name for i in range(trade.shape[0])]
+        access_sequence.append('T_S_SYMB')
+        access_sequence.extend(trade.columns)
+        access_sequence.extend(['TT_ID','TT_NAME','S_SYMB','S_NAME'])
+        
+        profile['SE_T_ID'] = []
+        profile['SE_AMT'] = []
+        profile['SE_CASH_DUE_DATE'] = []
+        profile['SE_CASH_TYPE'] = []
+        profile['CT_T_ID'] = []
+        profile['CT_AMT'] = []
+        profile['CT_DTS'] = []
+        profile['CT_NAME'] = []
+        profile['TH_T_ID'] = []
+        profile['TH_DTS'] = []
+        profile['TH_ST_ID'] = []
+        cnt = 0
+        updated = 0
+        for tid in profile['T_ID']:
+            settlement = dg.Settlement.loc[dg.Settlement['SE_T_ID']==tid,
+            ['SE_AMT','SE_CASH_DUE_DATE','SE_CASH_TYPE']]
+            profile['SE_T_ID'].append(tid)
+            profile['SE_AMT'].append(settlement['SE_AMT'].values[0])
+            profile['SE_CASH_DUE_DATE'].append(settlement['SE_CASH_DUE_DATE'].values[0])
+            profile['SE_CASH_TYPE'].append(settlement['SE_CASH_TYPE'].values[0])
+            access_sequence.append('SE_T_ID')
+            access_sequence.extend(settlement.columns)
+            if profile['T_IS_CASH'][cnt]:
+                if updated<max_updates:
+                    ct_name = dg.CashTransaction.loc[dg.CashTransaction['CT_T_ID']==tid,'CT_NAME'].values[0]
+                    profile['CT_T_ID'].append(tid)
+                    profile['CT_NAME'].append(ct_name)
+                    access_sequence.extend(['CT_T_ID','CT_NAME'])
+                    if ct_name.find("shares of") !=-1:
+                        ct_name = profile['TT_NAME'][cnt] + " " + str(profile['T_QTY'][cnt]) + " Shares of " + s_name
+                    else:
+                        ct_name = profile['TT_NAME'][cnt] + " " + str(profile['T_QTY'][cnt]) + " shares of " + s_name
+                    dg.CashTransaction.loc[dg.CashTransaction['CT_T_ID']==tid,'CT_NAME'].values[0] = ct_name
+                    profile['CT_T_ID'].append(tid)
+                    profile['CT_NAME'].append(ct_name)
+                    access_sequence.extend(['CT_T_ID','CT_NAME'])
+                    updated += 1
+            if profile['T_IS_CASH'][cnt]:
+                cashtransaction = dg.CashTransaction.loc[dg.CashTransaction['CT_T_ID'] == tid,
+                ['CT_AMT','CT_DTS','CT_NAME']]
+                profile['CT_T_ID'].append(tid)
+                profile['CT_AMT'].append(cashtransaction['CT_AMT'].values[0])
+                profile['CT_DTS'].append(cashtransaction['CT_DTS'].values[0])
+                profile['CT_NAME'].append(cashtransaction['CT_NAME'].values[0])
+                access_sequence.append('CT_T_ID')
+                access_sequence.append(cashtransaction.columns)
+            tradehistory = dg.TradeHistory.loc[dg.TradeHistory['TH_T_ID']==tid,
+            ['TH_DTS','TH_ST_ID']][:3]
+            profile['TH_T_ID'].append(tid)
+            profile['TH_DTS'].extend(tradehistory['TH_DTS'].values)
+            profile['TH_ST_ID'].extend(tradehistory['TH_ST_ID'].values)
+            access_sequence.append('TH_T_ID')
+            access_sequence.extend(tradehistory.columns)
+            cnt += 1
+        createProfile(profile, ' tradeupdate2 ' + str(acct_id) ,access_sequence)
+        return symbol,end_trade_dts,start_trade_dts,frame_to_execute,max_trades,max_updates,profile['T_CA_ID'],profile['CT_AMT'],profile['CT_DTS'],profile['CT_NAME'],profile['T_EXEC_NAME'],profile['T_IS_CASH'],profile['T_TRADE_PRICE'],profile['T_QTY'],profile['S_NAME'],profile['SE_AMT'],profile['SE_CASH_DUE_DATE'],profile['SE_CASH_TYPE'],profile['TH_DTS'],profile['TH_ST_ID'],profile['T_ID'],profile['TT_NAME'],profile['T_TT_ID']
+            
+            
+                
