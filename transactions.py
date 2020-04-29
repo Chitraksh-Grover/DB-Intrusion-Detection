@@ -46,7 +46,6 @@ def createProfile(profile,trans,access_sequence =''):
         access_sequence = list(profile.keys())
     for feature in profile.keys():
         if dg.URV_feature_type[feature] == 'C':
-            print(feature)
             URV[dg.URV_feature_index[feature]] = len(set(profile[feature]))
             URV[dg.URV_feature_index[feature] + 1] = len(profile[feature])
         else:
@@ -1863,5 +1862,62 @@ def tradeupdate(acct_id='',end_trade_dts='',frame_to_execute='',max_acct_id='',m
         createProfile(profile, ' tradeupdate2 ' + str(acct_id) ,access_sequence)
         return symbol,end_trade_dts,start_trade_dts,frame_to_execute,max_trades,max_updates,profile['T_CA_ID'],profile['CT_AMT'],profile['CT_DTS'],profile['CT_NAME'],profile['T_EXEC_NAME'],profile['T_IS_CASH'],profile['T_TRADE_PRICE'],profile['T_QTY'],profile['S_NAME'],profile['SE_AMT'],profile['SE_CASH_DUE_DATE'],profile['SE_CASH_TYPE'],profile['TH_DTS'],profile['TH_ST_ID'],profile['T_ID'],profile['TT_NAME'],profile['T_TT_ID']
             
-            
-                
+##############################TRADE CLEANUP TRANSACTION########################
+def tradecleanup():
+    profile = {}
+    access_sequence = []
+    tids = list(dg.TradeRequest['TR_T_ID'])
+    profile['TR_T_ID'] = tids
+    access_sequence.append('TR_T_ID')
+    profile['TH_T_ID'] = []
+    profile['TH_DTS'] = []
+    profile['TH_ST_ID'] = []
+    profile['T_ID'] = []
+    profile['T_ST_ID'] = []
+    profile['T_DTS'] = []
+    for tid in tids:
+        current_time = nowTime()
+        now_dts = datetime.datetime.strftime(current_time,"%Y-%m-%d %H:%M:%S.%f")
+        tradehistory = pd.DataFrame({'TH_T_ID':[tid],'TH_DTS':[now_dts], 'TH_ST_ID':['SBMT']})
+        dg.TradeHistory = dg.TradeHistory.append(tradehistory)
+        profile['TH_T_ID'].append(tid)
+        profile['TH_DTS'].append(now_dts)
+        profile['TH_ST_ID'].append('SBMT')
+        access_sequence.extend(tradehistory.columns)
+        index = dg.Trade['T_ID'] == tid
+        dg.Trade.loc[index,'T_ST_ID'] = 'CNCL'
+        dg.Trade.loc[index,'T_DTS'] = now_dts
+        profile['T_ID'].append(tid)
+        profile['T_ST_ID'].append('CNCL')
+        profile['T_DTS'].append(now_dts)
+        access_sequence.extend(['T_ID','T_ST_ID','T_DTS'])
+        tradehistory = pd.DataFrame({'TH_T_ID':[tid],'TH_DTS':[now_dts], 'TH_ST_ID':['CNCL']})
+        dg.TradeHistory = dg.TradeHistory.append(tradehistory)
+        profile['TH_T_ID'].append(tid)
+        profile['TH_DTS'].append(now_dts)
+        profile['TH_ST_ID'].append('CNCL')
+        access_sequence.extend(tradehistory.columns)
+    dg.TradeRequest.drop(dg.TradeRequest.index,inplace=True)
+    tids = list(dg.Trade.loc[dg.Trade['T_ST_ID']=='SBMT','T_ID'].values)
+    profile['T_ST_ID'].extend(['SBMT' for i in range(len(tids))])
+    profile['T_ID'].extend(tids)
+    for tid in tids:
+        current_time = nowTime()
+        now_dts = datetime.datetime.strftime(current_time,"%Y-%m-%d %H:%M:%S.%f")
+        index = dg.Trade['T_ID'] == tid
+        dg.Trade.loc[index,'T_ST_ID'] = 'CNCL'
+        dg.Trade.loc[index,'T_DTS'] = now_dts
+        profile['T_ID'].append(tid)
+        profile['T_ST_ID'].append('CNCL')
+        profile['T_DTS'].append(now_dts)
+        access_sequence.extend(['T_ID','T_ST_ID','T_DTS'])
+        tradehistory = pd.DataFrame({'TH_T_ID':[tid],'TH_DTS':[now_dts], 'TH_ST_ID':['CNCL']})
+        dg.TradeHistory = dg.TradeHistory.append(tradehistory)
+        profile['TH_T_ID'].append(tid)
+        profile['TH_DTS'].append(now_dts)
+        profile['TH_ST_ID'].append('CNCL')
+        access_sequence.extend(tradehistory.columns)
+    createProfile(profile,' Trade Status', access_sequence)
+         
+        
+        
