@@ -74,6 +74,7 @@ def brokervolume():
     profile = {'B_ID':[],'SC_ID':[],'SC_NAME':[],'IN_SC_ID':[],'IN_ID':[],
                'CO_IN_ID':[],'CO_ID':[],'S_CO_ID':[],'S_SYMB':[],'TR_B_ID':[],
                'TR_S_SYMB':[],'TR_QTY':[],'TR_BID_PRICE':[]}
+    access_sequence = []
     min_broker_len = 5
     max_broker_len = 10
     broker_len = np.random.randint(min_broker_len,max_broker_len+1)
@@ -89,7 +90,7 @@ def brokervolume():
     
     profile['SC_ID'].extend(list(sector_id))
     profile['SC_NAME'].append(sector_name)
-        
+    access_sequence.extend(['B_ID','SC_ID','SC_NAME'])    
     volume = []
         
     industry_id = list(dg.Industry.loc[dg.Industry['IN_SC_ID'] == sector_id,'IN_ID'])
@@ -103,7 +104,7 @@ def brokervolume():
     security_symbol = list(security['S_SYMB'])
     profile['S_CO_ID'].extend(list(security['S_CO_ID']))
     profile['S_SYMB'].extend(security_symbol)
-    
+    access_sequnece.extend(['IN_SC_ID','IN_ID','CO_IN_ID','CO_ID','S_CO_ID','S_SYMB'])
     for broker in brokers:
        trade = dg.TradeRequest.loc[(dg.TradeRequest['TR_B_ID'] == broker) & (dg.TradeRequest['TR_S_SYMB'].isin(security_symbol) ),['TR_S_SYMB','TR_QTY','TR_BID_PRICE']]
        qty = trade['TR_QTY']
@@ -115,8 +116,9 @@ def brokervolume():
        v = qty*price
        v = v.sum()
        volume.append(v)
+       access_sequence.extend(['TR_B_ID','TR_S_SYMB','TR_QTY','TR_BID_PRICE'])
         
-    createProfile(profile,' brokervolume')
+    createProfile(profile,' brokervolume',access_sequence)
     
     del industry_id,company_id,security_symbol,trade,qty,price,sectors
     return sector_name , brokers , volume
@@ -124,6 +126,7 @@ def brokervolume():
 ############################CUSTOMER POSITION TRANSACTION######################
 def customerposition(cust_id='', get_history='', tax_id='',account_id_idx=''):
     profile = {}
+    access_sequence = []
     if cust_id == ''  or  get_history== '' or tax_id== '':
         print('parameter mising , choosing random parameters ###############')
         cust_id = np.random.randint(2)
@@ -156,18 +159,21 @@ def customerposition(cust_id='', get_history='', tax_id='',account_id_idx=''):
         profile['T_S_SYMB'] = list(trade['T_S_SYMB'])
         profile['T_QTY'] = list(trade['T_QTY'])
         profile['T_DTS'] = list(trade['T_DTS'])
+        access_sequence.extend(trade.columns)
         tradehistory = dg.TradeHistory.loc[dg.TradeHistory['TH_T_ID'].isin(list(trade['T_ID'])),['TH_T_ID','TH_ST_ID','TH_DTS']]
         tradehistory = tradehistory[::-1]
         tradehistory = tradehistory[:30]
         profile['TH_T_ID'] = list(tradehistory['TH_T_ID'])
         profile['TH_ST_ID'] = list(tradehistory['TH_ST_ID'])
         profile['TH_DTS'] = list(tradehistory['TH_DTS'])
+        access_sequence.extend(tradehistory.columns)
         status = dg.StatusType.loc[dg.StatusType['ST_ID'].isin(list(tradehistory['TH_ST_ID'])),['ST_ID','ST_NAME']]
         result =trade.set_index('T_ID',drop=False).join(tradehistory.set_index('TH_T_ID',drop=False))
         result =result.set_index('TH_ST_ID',drop=False).join(status.set_index('ST_ID',drop=False))
         profile['ST_ID'] = list(result['ST_ID'])
         profile['ST_NAME'] = list(result['ST_NAME'])
-        createProfile(profile,' customerposition '+str(cust_id))
+        access_sequence.extend(result.columns)
+        createProfile(profile,' customerposition '+str(cust_id),access_sequence)
         return cust_id,tax_id,account_id_idx,result[['T_ID','T_S_SYMB','T_QTY','ST_NAME','TH_DTS']]
     #########################################################################        
     
@@ -197,7 +203,8 @@ def customerposition(cust_id='', get_history='', tax_id='',account_id_idx=''):
     profile['C_EXT_3'] = [customer_info['C_EXT_3'].values[0]]
     profile['C_EMAIL_1'] = [customer_info['C_EMAIL_1'].values[0]]
     profile['C_EMAIL_2'] = [customer_info['C_EMAIL_2'].values[0]]
-    
+    access_sequence.append('C_ID')
+    access_sequence.extend(customer_info.columns)
     customeraccount = dg.CustomerAccount.loc[dg.CustomerAccount['CA_C_ID']==cust_id,['CA_C_ID','CA_ID','CA_BAL']]
     account_id = list(customeraccount['CA_ID'])
     cash_balance = list(customeraccount['CA_BAL'])
@@ -209,7 +216,7 @@ def customerposition(cust_id='', get_history='', tax_id='',account_id_idx=''):
     profile['CA_C_ID'] = [cust_id for i in range(len(account_id))]
     profile['CA_ID'] = account_id
     profile['CA_BAL'] = cash_balance
-    
+    access_sequence.extend(customeraccount.columns)
     profile['HS_CA_ID'] = []
     profile['HS_S_SYMB'] = []
     profile['HS_QTY'] = []
@@ -227,6 +234,8 @@ def customerposition(cust_id='', get_history='', tax_id='',account_id_idx=''):
         profile['HS_QTY'].extend(qty)
         profile['LT_S_SYMB'].extend(list(lasttrade['LT_S_SYMB']))
         profile['LT_PRICE'].extend(list(lasttrade['LT_PRICE']))
+        access_sequence.extend(holdingsummary.columns)
+        access_sequence.extend(lasttrade.columns)
         asset = 0
         for i in range(len(symbol)):
             price = lasttrade.loc[lasttrade['LT_S_SYMB']==symbol[i],'LT_PRICE'].values[0]
@@ -236,7 +245,7 @@ def customerposition(cust_id='', get_history='', tax_id='',account_id_idx=''):
                 continue
         assets_total.append(asset)
         
-        createProfile(profile," customerposition "+str(cust_id))
+        createProfile(profile," customerposition "+str(cust_id),access_sequence)
         return cust_id,tax_id,account_id,customer_info,cash_balance,assets_total
 
 ############################MARKET FEED TRANSACTION############################
